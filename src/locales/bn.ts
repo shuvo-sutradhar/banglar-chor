@@ -1,0 +1,68 @@
+/** Bangla player-facing copy. English identifiers stay in code (README rule 13). */
+export const bn = {
+  gameTitle: 'সিঁধেল চোর',
+  tagline: 'সিঁধ কাটবি, না ধরা খাবি?',
+  start: 'খেলা শুরু',
+  howToPlay: 'কীভাবে খেলবেন',
+  settings: 'সেটিংস',
+  close: 'বন্ধ করুন',
+  resume: 'আবার চালু',
+  paused: 'বিরতি',
+  mainMenu: 'মূল মেনু',
+  loading: 'গ্রাম সাজানো হচ্ছে…',
+  prototypeBadge: 'প্রোটোটাইপ · ধাপ ১: গ্রাম ঘুরে দেখা',
+  prototypeNote: 'এই সংস্করণে গ্রামে হাঁটা, দৌড়, গুঁড়ি মারা, ক্যামেরা আর কাছের জিনিস দেখা যায়। সিঁধ কাটা, লুট আর বাজার পরের ধাপে আসছে।',
+
+  modeIdle: 'দাঁড়িয়ে',
+  modeWalk: 'হাঁটছে',
+  modeRun: 'দৌড়াচ্ছে',
+  modeCrouchIdle: 'গুঁড়ি মেরে বসে',
+  modeCrouchWalk: 'গুঁড়ি মেরে চলছে',
+  modeAirborne: 'পড়ছে',
+
+  actionInspect: 'দেখুন',
+  actionNothing: 'কাছে দেখার মতো কিছু নেই।',
+  actionButton: 'কাজ',
+  sprint: 'দৌড়',
+  crouch: 'গুঁড়ি',
+  pause: 'বিরতি',
+
+  hintsDesktop: 'W A S D / তীর: হাঁটা · Shift: দৌড় · C: গুঁড়ি · E: দেখা · মাউস টেনে ক্যামেরা ঘোরান · Esc: বিরতি',
+  hintsTouch: 'বাঁ দিকে আঙুল টেনে হাঁটুন · ডান দিকে টেনে ক্যামেরা ঘোরান',
+  hideHints: 'লুকান',
+  rotateDevice: 'ভালো অভিজ্ঞতার জন্য ফোনটি আড়াআড়ি ধরুন।',
+  dismiss: 'ঠিক আছে',
+
+  settingsQuality: 'গ্রাফিক্সের মান',
+  qualityAuto: 'স্বয়ংক্রিয়',
+  qualityLow: 'কম',
+  qualityMedium: 'মাঝারি',
+  qualityHigh: 'বেশি',
+  settingsReducedMotion: 'কম নড়াচড়া (ক্যামেরা ঝাঁকুনি ও জুম বন্ধ)',
+  settingsSensitivity: 'ক্যামেরার গতি',
+  settingsInvertY: 'ক্যামেরা উপর-নিচ উল্টো',
+  settingsHints: 'নিয়ন্ত্রণের নির্দেশনা দেখান',
+  settingsSubtitles: 'সাবটাইটেল',
+  resetGraphics: 'গ্রাফিক্স রিসেট',
+  settingsSavedLocal: 'সেটিংস শুধু এই ডিভাইসে সংরক্ষিত হয়।',
+  activeQuality: 'চলমান মান',
+
+  storageUnavailable: 'এই ব্রাউজারে সংরক্ষণ বন্ধ আছে — সেটিংস রিলোডের পর মনে থাকবে না।',
+  storageCorrupt: 'আগের সংরক্ষিত তথ্য নষ্ট ছিল, তাই নতুন করে শুরু করা হলো।',
+  storageVersion: 'পুরোনো সংস্করণের সংরক্ষিত তথ্য পাওয়া গেছে, তাই নতুন করে শুরু করা হলো।',
+
+  webglMissingTitle: '3D চালানো যাচ্ছে না',
+  webglMissingBody: 'আপনার ব্রাউজার বা ডিভাইসে WebGL চালু নেই। Chrome, Edge, Firefox বা Safari-র নতুন সংস্করণে চেষ্টা করুন, অথবা হার্ডওয়্যার অ্যাক্সেলারেশন চালু করুন।',
+  contextLostTitle: 'গ্রাফিক্স থেমে গেছে',
+  contextLostBody: 'ডিভাইসের গ্রাফিক্স সাময়িকভাবে বন্ধ হয়েছে। একটু অপেক্ষা করুন বা পেজটি রিলোড করুন।',
+  errorTitle: 'কিছু একটা গোলমাল হয়েছে',
+  errorBody: 'গেমটি চালাতে সমস্যা হয়েছে। পেজটি রিলোড করে আবার চেষ্টা করুন।',
+  reload: 'রিলোড করুন',
+
+  helpDesktopTitle: 'কিবোর্ড ও মাউস',
+  helpTouchTitle: 'মোবাইল / টাচ',
+  helpGoalTitle: 'এখন কী করবেন',
+  helpGoalBody: 'রাতের গ্রামটা ঘুরে দেখুন — রহিম চাচার মাটির ঘর, কুদ্দুস মেম্বারের বাঁশের বেড়ার বাড়ি, মোড়ল বাড়ির টিনের ঘর, পুকুরঘাট আর গোয়ালঘর। কাছে গেলে জিনিস দেখতে পারবেন।',
+} as const;
+
+export type StringKey = keyof typeof bn;
