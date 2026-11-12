@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, Vector3, type PointLight } from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useRapier } from '@react-three/rapier';
-import { clamp, damp } from '../../lib/math';
+import { clamp, damp, dampAngle } from '../../lib/math';
 import { useAppStore } from '../../state/useAppStore';
 import { useHudStore } from '../../state/useHudStore';
 import { useGameRuntime } from '../GameRuntime';
-import { makeCameraBlocker } from '../physics/queries';
-import { CAMERA_PRESETS, CAMERA_TUNING, PLAYER_SPAWN } from '../data/tuning';
+import { makeCameraRayFilter, makeSightRayFilter } from '../physics/queries';
+import { CAMERA_PRESETS, CAMERA_TUNING, MINIGAME_CAMERA_YAW, PLAYER_SPAWN } from '../data/tuning';
 
 const MENU_CENTER = new Vector3(0, 1.5, 4);
 
@@ -40,8 +40,12 @@ const smoothstep = (t: number) => t * t * (3 - 2 * t);
 export function ThirdPersonCamera() {
   const runtime = useGameRuntime();
   const { world, rapier, colliderStates } = useRapier();
-  const blocksCamera = useMemo(() => makeCameraBlocker(colliderStates), [colliderStates]);
+  const blocksCamera = useMemo(() => makeCameraRayFilter(colliderStates), [colliderStates]);
+  // In close-quarters modes (minigame, interior, catch) thin props also push the camera in,
+  // so a trunk or post never fills the view.
+  const blocksCameraClose = useMemo(() => makeSightRayFilter(colliderStates), [colliderStates]);
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
+  const fillRef = useRef<PointLight>(null);
 
   const state = useMemo(
     () => ({
@@ -68,7 +72,9 @@ export function ThirdPersonCamera() {
     runtime.camera.yaw = 0;
     runtime.camera.pitch = CAMERA_PRESETS.exploration.defaultPitch;
     state.introFromPos.copy(camera.position);
-    state.introFromLook.copy(MENU_CENTER);
+    // Glide from wherever the previous camera (menu orbit or preparation close-up) was looking.
+    camera.getWorldDirection(state.introFromLook);
+    state.introFromLook.multiplyScalar(6).add(camera.position);
     state.introT = 0;
     state.initialized = false;
     state.smoothedTarget.set(PLAYER_SPAWN[0], PLAYER_SPAWN[1] + CAMERA_PRESETS.exploration.targetHeight, PLAYER_SPAWN[2]);
@@ -81,14 +87,24 @@ export function ThirdPersonCamera() {
     const cam = runtime.camera;
     const { settings } = app;
 
-    // Orbit input
+    // Camera mode follows the game phase.
+    const phase = app.phase;
+    const mode = phase === 'entry' ? 'minigame' : phase === 'caught' ? 'caught' : phase === 'chase' ? 'chase' : 'follow';
+    cam.mode = mode;
     runtime.input.consumeLook(state.look);
-    const k = CAMERA_TUNING.radiansPerPixel * settings.cameraSensitivity;
-    cam.yaw -= state.look.x * k;
-    cam.pitch = clamp(cam.pitch + state.look.y * k * (settings.invertY ? -1 : 1), CAMERA_TUNING.minPitch, CAMERA_TUNING.maxPitch);
-
-    // Preset blending
-    const presetId = cam.interiorZones.size > 0 ? 'interior' : 'exploration';
+    if (mode === 'follow' || mode === 'chase') {
+      const k = CAMERA_TUNING.radiansPerPixel * settings.cameraSensitivity;
+      cam.yaw -= state.look.x * k;
+      cam.pitch = clamp(cam.pitch + state.look.y * k * (settings.invertY ? -1 : 1), CAMERA_TUNING.minPitch, CAMERA_TUNING.maxPitch);
+    }
+    const presetId = mode !== 'follow' ? mode : cam.interiorZones.size > 0 ? 'interior' : 'exploration';
+    if (mode === 'minigame') {
+      cam.yaw = dampAngle(cam.yaw, MINIGAME_CAMERA_YAW, 3, dt);
+      cam.pitch = damp(cam.pitch, CAMERA_PRESETS.minigame.defaultPitch, 3, dt);
+    } else if (mode === 'caught') {
+      cam.yaw += dt * (settings.reducedMotion ? 0.08 : 0.35);
+      cam.pitch = damp(cam.pitch, CAMERA_PRESETS.caught.defaultPitch, 3, dt);
+    }
     if (cam.preset !== presetId) {
       cam.preset = presetId;
       useHudStore.getState().setCameraPreset(presetId);
@@ -97,7 +113,7 @@ export function ThirdPersonCamera() {
     const blend = CAMERA_TUNING.presetBlendRate;
     state.distance = damp(state.distance, preset.distance, blend, dt);
     state.targetHeight = damp(state.targetHeight, preset.targetHeight, blend, dt);
-    const sprinting = runtime.player.mode === 'run' && !settings.reducedMotion;
+    const sprinting = (runtime.player.mode === 'run' || mode === 'chase') && !settings.reducedMotion;
     state.fov = damp(state.fov, preset.fov + (sprinting ? CAMERA_TUNING.sprintFovBoost : 0), 5, dt);
     if (Math.abs(camera.fov - state.fov) > 0.01) {
       camera.fov = state.fov;
@@ -130,7 +146,7 @@ export function ThirdPersonCamera() {
     state.ray.dir.x = state.offsetDir.x;
     state.ray.dir.y = state.offsetDir.y;
     state.ray.dir.z = state.offsetDir.z;
-    const hit = world.castRay(state.ray, state.distance, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, runtime.player.body ?? undefined, blocksCamera);
+    const hit = world.castRay(state.ray, state.distance, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined, presetId === 'exploration' || presetId === 'chase' ? blocksCamera : blocksCameraClose);
     const allowed = hit ? Math.max(CAMERA_TUNING.minDistance, hit.timeOfImpact - CAMERA_TUNING.occlusionPadding) : state.distance;
     if (allowed < state.currentDistance) state.currentDistance = allowed;
     else state.currentDistance = damp(state.currentDistance, allowed, CAMERA_TUNING.occlusionRelease, dt);
@@ -147,11 +163,22 @@ export function ThirdPersonCamera() {
       camera.position.lerpVectors(state.introFromPos, state.desired, s);
       state.blendedLook.lerpVectors(state.introFromLook, origin, s);
       camera.lookAt(state.blendedLook);
+      placeFill();
       return;
     }
     camera.position.copy(state.desired);
     camera.lookAt(origin);
+    placeFill();
   });
 
-  return null;
+  // Soft moon-tinted fill between camera and player so the avatar never becomes an unreadable
+  // silhouette against lanterns (README §5: always let players see their avatar).
+  function placeFill() {
+    const fill = fillRef.current;
+    if (!fill) return;
+    fill.position.lerpVectors(state.smoothedTarget, camera.position, 0.45);
+    fill.position.y += 0.8;
+  }
+
+  return <pointLight ref={fillRef} color="#c9d6ff" intensity={3.2} distance={6} decay={2} />;
 }

@@ -7,42 +7,17 @@ import { useAppStore } from '../../state/useAppStore';
 import { mergeColoredParts, type ColoredPart } from './geometryUtils';
 import { COWSHED, HOUSES, TEA_STALL } from './layout';
 import { mat, PALETTE, signTexture } from './materials';
-import { Block, ClayStove, GableRoof, HippedThatch, Kolshi, Lantern, Post, Structure, VerandaRamp } from './buildingParts';
+import { Block, ClayStove, GableRoof, Kolshi, Lantern, Post, Structure, VerandaRamp } from './buildingParts';
 import { UNIT_BOX, UNIT_CYLINDER, prismGeometry } from './sharedGeometry';
 import { haystackGeometry } from './propGeometries';
+import { RahimHouse } from './RahimHouse';
+import { STANDALONE_HAYSTACKS } from '../ai/villageNav';
 
 const CIRCLE = new CircleGeometry(1, 20);
 const PLANE = new PlaneGeometry(1, 1);
 
 function GroundPatch({ position, scale, material }: { position: [number, number, number]; scale: [number, number]; material: MeshLambertMaterial | ReturnType<typeof mat> }) {
   return <mesh geometry={CIRCLE} material={material} position={position} rotation={[-Math.PI / 2, 0, 0]} scale={[scale[0], scale[1], 1]} receiveShadow />;
-}
-
-/** রহিম চাচার মাটির ঘর — mud walls on a raised plinth, hipped straw roof. */
-function RahimHouse() {
-  return (
-    <Structure placement={HOUSES.rahim}>
-      <GroundPatch position={[0, 0.012, 4.8]} scale={[4.6, 3.0]} material={mat('courtyard')} />
-      {/* Raised mud plinth with a front veranda (দাওয়া) you can step onto. */}
-      <Block size={[7, 0.3, 6.6]} position={[0, 0.15, 0.5]} material={mat('plinth')} collider />
-      <VerandaRamp edgeZ={3.8} width={7} height={0.3} material={mat('plinth')} />
-      <Block size={[6, 2.3, 4.5]} position={[0, 1.45, 0]} material={mat('mud')} collider />
-      <Block size={[6.04, 0.35, 4.54]} position={[0, 0.48, 0]} material={mat('mudDark')} castShadow={false} />
-      <Block size={[1.0, 1.75, 0.06]} position={[0, 1.18, 2.27]} material={mat('woodDark')} castShadow={false} />
-      <Block size={[1.2, 0.12, 0.1]} position={[0, 2.1, 2.28]} material={mat('wood')} castShadow={false} />
-      {[-1.8, 1.8].map((x) => (
-        <Block key={x} size={[0.7, 0.6, 0.06]} position={[x, 1.6, 2.27]} material={mat('wood')} castShadow={false} />
-      ))}
-      <HippedThatch footX={7.8} footZ={6.4} height={2.3} baseY={2.6} />
-      <Lantern position={[0.85, 2.15, 2.45]} />
-      <Kolshi position={[2.7, 0.3, 2.45]} />
-      <Kolshi position={[3.1, 0.3, 2.2]} scale={0.8} />
-      <ClayStove position={[-2.9, 0, 4.8]} />
-      <CuboidCollider args={[0.36, 0.25, 0.36]} position={[-2.9, 0.25, 4.8]} name={CAMERA_TRANSPARENT} />
-      {/* Woven mat (পাটি) drying in the courtyard. */}
-      <mesh geometry={PLANE} material={mat('weave')} position={[1.2, 0.02, 5.3]} rotation={[-Math.PI / 2, 0, 0.2]} scale={[1.5, 1.0, 1]} receiveShadow />
-    </Structure>
-  );
 }
 
 function fenceGeometry(width: number, depth: number, gate: number) {
@@ -236,11 +211,6 @@ function TeaStall() {
   );
 }
 
-const STANDALONE_HAYSTACKS: [number, number][] = [
-  [-17, 11],
-  [-16.5, 19.5],
-  [-16, -13.5],
-];
 
 function Haystacks() {
   const hay = useMemo(() => haystackGeometry(), []);

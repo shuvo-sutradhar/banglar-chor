@@ -1,8 +1,10 @@
-// Browser gameplay smoke test (desktop keyboard/mouse + emulated touch phone).
+// Phase 1 regression: movement, camera, collision, pause, touch (desktop + emulated phone).
+// Runs with `?nonpc=1` so the patrolling villager can't interfere with movement measurements.
 // Usage: npm run build && npx vite preview --port 4173   (in another shell)
 //        node tests/smoke/smoke.mjs [baseUrl] [screenshotDir]
 // Requires a locally installed Chromium-family browser (Edge or Chrome); no download needed.
 import { chromium } from 'playwright-core';
+import { cdpFor, completePreparation } from './helpers.mjs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -17,6 +19,11 @@ const check = (name, ok, detail = '') => {
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const snap = (page) => page.evaluate(() => window.__sidhel?.snapshot());
+const waitStopped = (page) =>
+  page
+    .waitForFunction(() => window.__sidhel.snapshot().player.speed < 0.2, null, { timeout: 3000 })
+    .then(() => true)
+    .catch(() => false);
 
 async function launch() {
   const args = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
@@ -31,7 +38,7 @@ async function launch() {
 }
 
 async function startGame(page) {
-  await page.goto(`${BASE}/?debug=1`);
+  await page.goto(`${BASE}/?debug=1&nonpc=1`);
   await page.getByTestId('start-button').waitFor();
   await page.waitForFunction(() => !document.querySelector('[data-testid=start-button]')?.hasAttribute('disabled'), null, { timeout: 60000 });
   await page.getByTestId('start-button').click();
@@ -53,7 +60,7 @@ async function desktop(browser) {
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
-  await page.goto(`${BASE}/?debug=1`);
+  await page.goto(`${BASE}/?debug=1&nonpc=1`);
   await page.getByTestId('start-button').waitFor();
   await page.waitForFunction(() => !document.querySelector('[data-testid=start-button]')?.hasAttribute('disabled'), null, { timeout: 60000 });
   const canvasOk = await page.evaluate(() => {
@@ -63,9 +70,9 @@ async function desktop(browser) {
   check('menu: WebGL canvas present behind title', canvasOk);
   await page.screenshot({ path: join(SHOTS, 'desktop-menu.png') });
 
+  const cdp = await cdpFor(page);
   await page.getByTestId('start-button').click();
-  await page.waitForFunction(() => window.__sidhel?.snapshot().player !== null, null, { timeout: 20000 });
-  await wait(1800);
+  await completePreparation(page, cdp);
   let s = await snap(page);
   check('start: player spawned and grounded', s.player && s.player.grounded && Math.abs(s.player.y) < 0.3, JSON.stringify(s.player));
   await page.screenshot({ path: join(SHOTS, 'desktop-spawn.png') });
@@ -130,7 +137,7 @@ async function desktop(browser) {
   s = await snap(page);
   // Front wall face is at x = -12 + 2.25 = -9.75; capsule radius 0.35.
   check('collision: blocked by Rahim house wall (no clipping)', s.player.x > -9.75 && s.player.x < -9.2, `x=${s.player.x.toFixed(3)} (wall face -9.75)`);
-  check('collision: stepped up onto the 0.3 m veranda via autostep', s.player.y > 0.25, `y=${s.player.y.toFixed(3)}`);
+  check('collision: stepped up onto the 0.3 m veranda (ramp)', s.player.y > 0.25, `y=${s.player.y.toFixed(3)}`);
   check('zone: HUD shows house name on approach', s.hud.zone === 'রহিম চাচার মাটির ঘর', String(s.hud.zone));
   check('interaction: house becomes focused target when close', s.hud.focus === 'inspect-rahim-house', String(s.hud.focus));
   const promptVisible = await page.getByTestId('interact-prompt').isVisible().catch(() => false);
@@ -189,6 +196,7 @@ async function desktop(browser) {
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'মূল মেনু' }).click();
   await page.getByTestId('start-button').click();
+  await page.getByTestId('prep-skip').click();
   await page.waitForFunction(() => window.__sidhel?.snapshot().player !== null, null, { timeout: 20000 });
   await wait(1800);
   s = await snap(page);
@@ -230,12 +238,11 @@ async function touch(browser) {
   const cdp = await ctx.newCDPSession(page);
   const touchEvt = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map((p, i) => ({ x: p[0], y: p[1], id: p[2] ?? i })) });
 
-  await page.goto(`${BASE}/?debug=1`);
+  await page.goto(`${BASE}/?debug=1&nonpc=1`);
   await page.getByTestId('start-button').waitFor();
   await page.waitForFunction(() => !document.querySelector('[data-testid=start-button]')?.hasAttribute('disabled'), null, { timeout: 60000 });
   await page.getByTestId('start-button').tap();
-  await page.waitForFunction(() => window.__sidhel?.snapshot().player !== null, null, { timeout: 20000 });
-  await wait(1800);
+  await completePreparation(page, cdp, { touch: true });
   check('touch: mobile controls visible on touch device', await page.getByTestId('mobile-controls').isVisible());
   await page.screenshot({ path: join(SHOTS, 'touch-spawn.png') });
 
@@ -248,10 +255,11 @@ async function touch(browser) {
   const mid = await snap(page);
   await page.screenshot({ path: join(SHOTS, 'touch-joystick.png') });
   await touchEvt('touchEnd', []);
-  await wait(500);
+  // Poll: at a few FPS the last physics step may lag; a truly sticky stick would never stop.
+  const stopped = await waitStopped(page);
   s = await snap(page);
   check('touch: joystick moves player forward', z0 - s.player.z > 2, `moved ${(z0 - s.player.z).toFixed(2)} m`);
-  check('touch: release stops movement (no sticky joystick)', s.player.speed < 0.2, `speed ${s.player.speed.toFixed(2)} (mid ${mid.player.speed.toFixed(2)})`);
+  check('touch: release stops movement (no sticky joystick)', stopped, `speed ${s.player.speed.toFixed(2)} (mid ${mid.player.speed.toFixed(2)})`);
 
   // Multitouch: hold sprint (right) + joystick (left) simultaneously.
   const sprintBox = await page.getByTestId('touch-sprint').boundingBox();
@@ -265,10 +273,10 @@ async function touch(browser) {
   const runMid = await snap(page);
   await touchEvt('touchEnd', [[sx, sy, 2]]);
   await touchEvt('touchEnd', []);
-  await wait(500);
+  const stoppedAfterRun = await waitStopped(page);
   s = await snap(page);
   check('touch: multitouch sprint + joystick runs', runMid.player.mode === 'run', `${runMid.player.mode}, moved ${(z1 - s.player.z).toFixed(2)}`);
-  check('touch: sprint button releases (not sticky)', s.player.speed < 0.2);
+  check('touch: sprint + joystick release (not sticky)', stoppedAfterRun && !(await page.getByTestId('touch-sprint').getAttribute('data-active')).includes('true'));
 
   // Swipe on the right side orbits the camera.
   const yaw0 = s.camera.yaw;

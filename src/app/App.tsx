@@ -3,7 +3,17 @@ import { t } from '../locales';
 import { detectWebGL } from '../lib/webgl';
 import { useAppStore } from '../state/useAppStore';
 import { useHudStore } from '../state/useHudStore';
-import { createGameRuntime } from '../game/GameRuntime';
+import { createGameRuntime, resetRuntimeForRun } from '../game/GameRuntime';
+import { useRunStore } from '../state/useRunStore';
+import { CONTROL_PHASES, WORLD_PHASES } from '../state/useAppStore';
+import { audio } from '../game/audio/AudioManager';
+import { crawlOutOfRahimHouse } from '../game/systems/nightActions';
+import { CRAWL_INSIDE } from '../game/data/rahimHouse';
+import { PreparationOverlay } from './screens/PreparationOverlay';
+import { EntryOverlay } from './screens/EntryOverlay';
+import { CaughtOverlay } from './screens/CaughtOverlay';
+import { NightResolution } from './screens/NightResolution';
+import { InventoryPanel } from './components/InventoryPanel';
 import { GameCanvas } from '../game/GameCanvas';
 import { ErrorBoundary, FatalScreen } from './components/ErrorBoundary';
 import { HelpDialog, SettingsDialog } from './components/Dialogs';
@@ -57,23 +67,49 @@ function GameRoot() {
   const sessionId = useAppStore((s) => s.sessionId);
   const touchUi = useHudStore((s) => s.touchUi);
 
+  const inventoryOpen = useRunStore((s) => s.inventoryOpen);
+  const volume = useAppStore((s) => s.settings.volume);
+  const muted = useAppStore((s) => s.settings.muted);
+  const [fading, setFading] = useState(false);
+
   useEffect(() => {
-    runtime.input.onPauseRequest = () => useAppStore.getState().togglePause();
+    runtime.input.onPauseRequest = () => {
+      // Esc closes the inventory first, then toggles pause.
+      if (useRunStore.getState().inventoryOpen) useRunStore.getState().setInventoryOpen(false);
+      else useAppStore.getState().togglePause();
+    };
+    runtime.input.onInventoryRequest = () => useRunStore.getState().setInventoryOpen(!useRunStore.getState().inventoryOpen);
     const detach = runtime.input.attachKeyboard(window);
     return () => {
       runtime.input.onPauseRequest = null;
+      runtime.input.onInventoryRequest = null;
       detach();
     };
   }, [runtime]);
 
-  // Auto-pause when the tab is hidden; timers and physics stop with it.
+  // Auto-pause when the tab is hidden; timers, physics, minigames and audio stop with it.
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden' && useAppStore.getState().phase === 'night') useAppStore.getState().setPaused(true);
+      const hidden = document.visibilityState === 'hidden';
+      if (hidden) useAppStore.getState().setPaused(true);
+      audio.setSuspended(hidden || useAppStore.getState().paused);
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
+
+  useEffect(() => {
+    audio.setVolume(volume, muted);
+  }, [volume, muted]);
+
+  useEffect(() => {
+    audio.setSuspended(paused);
+  }, [paused]);
+
+  useEffect(() => {
+    if (WORLD_PHASES.includes(phase) || phase === 'preparation') audio.startAmbience();
+    else audio.stopAmbience();
+  }, [phase]);
 
   // Show touch controls on coarse pointers, or as soon as any touch happens.
   useEffect(() => {
@@ -88,23 +124,53 @@ function GameRoot() {
   }, []);
 
   useEffect(() => {
-    runtime.input.setEnabled(phase === 'night' && !paused && overlay === 'none');
+    runtime.input.setEnabled(CONTROL_PHASES.includes(phase) && !paused && overlay === 'none');
   }, [runtime, phase, paused, overlay]);
 
+  // New run: reset per-run simulation state and HUD.
   useEffect(() => {
     runtime.input.reset();
+    resetRuntimeForRun(runtime);
     useHudStore.getState().resetSession();
-    runtime.camera.interiorZones.clear();
   }, [runtime, sessionId]);
 
-  const inWorld = phase === 'night';
+  // Inventory closes automatically outside controllable phases.
+  useEffect(() => {
+    if (!CONTROL_PHASES.includes(phase) && useRunStore.getState().inventoryOpen) useRunStore.getState().setInventoryOpen(false);
+  }, [phase]);
+
+  const leaveHouse = () => {
+    if (fading) return;
+    const p = runtime.player.position;
+    const near = Math.hypot(p.x - CRAWL_INSIDE[0], p.z - CRAWL_INSIDE[2]) < 0.8;
+    if (near) {
+      crawlOutOfRahimHouse(runtime, false);
+      return;
+    }
+    // Short fade hides moving to the opening from elsewhere in the room.
+    setFading(true);
+    window.setTimeout(() => {
+      crawlOutOfRahimHouse(runtime, true);
+      window.setTimeout(() => setFading(false), 250);
+    }, 300);
+  };
+
+  const hudPhases = ['night', 'entry', 'interior', 'chase', 'caught'];
+  const showHud = hudPhases.includes(phase);
+  const controls = CONTROL_PHASES.includes(phase);
   return (
     <div className="game-root">
       <GameCanvas runtime={runtime} />
       {phase === 'menu' && <MainMenu />}
-      {inWorld && <Hud />}
-      {inWorld && touchUi && !paused && <MobileControls input={runtime.input} />}
-      {inWorld && paused && <PauseMenu />}
+      {phase === 'preparation' && <PreparationOverlay runtime={runtime} />}
+      {showHud && <Hud onLeaveHouse={leaveHouse} />}
+      {phase === 'entry' && <EntryOverlay runtime={runtime} />}
+      {phase === 'caught' && <CaughtOverlay />}
+      {phase === 'night-resolution' && <NightResolution />}
+      {controls && inventoryOpen && !paused && <InventoryPanel runtime={runtime} />}
+      {controls && touchUi && !paused && <MobileControls input={runtime.input} />}
+      {paused && phase !== 'menu' && <PauseMenu />}
+      {fading && <div className="pointer-events-none fixed inset-0 z-40 bg-black transition-opacity" aria-hidden />}
       {overlay === 'settings' && <SettingsDialog />}
       {overlay === 'help' && <HelpDialog />}
       <StorageNotice />

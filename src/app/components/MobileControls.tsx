@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { t } from '../../locales';
 import { useHudStore } from '../../state/useHudStore';
+import { useRunStore } from '../../state/useRunStore';
+import type { InteractionKind } from '../../game/systems/InteractionSystem';
+
+const ACTION_LABEL: Record<InteractionKind, string> = { inspect: 'দেখুন', pick_up: 'তুলে নাও', enter: 'ঢোকো', exit: 'বের হও', hide: 'লুকাও', talk: 'কথা', sell: 'বেচো' };
 import type { InputController } from '../../game/controls/InputController';
 import { adaptiveJoystickRadius, normalizeJoystick } from '../../game/controls/joystickMath';
 
@@ -167,7 +171,7 @@ export function MobileControls({ input }: { input: InputController }) {
         />
         <div className="row-span-2 flex flex-col items-center gap-1">
           <TapButton
-            label={focus ? t('actionInspect') : t('actionButton')}
+            label={focus ? ACTION_LABEL[focus.kind] : t('actionButton')}
             onTap={() => input.queueInteract()}
             disabled={!focus}
             active={Boolean(focus)}
@@ -177,6 +181,7 @@ export function MobileControls({ input }: { input: InputController }) {
           {focus && <span className="max-w-28 truncate rounded bg-black/50 px-2 text-xs">{focus.labelBn}</span>}
         </div>
         <HoldButton label={t('sprint')} onChange={setSprint} className="h-16 w-16 text-base" testId="touch-sprint" />
+        <TapButton label="ঝোলা" onTap={() => useRunStore.getState().setInventoryOpen(!useRunStore.getState().inventoryOpen)} className="h-14 w-14 text-sm" testId="touch-inventory" />
       </div>
     </div>
   );

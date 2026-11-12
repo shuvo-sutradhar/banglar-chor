@@ -29,6 +29,8 @@ export class InputController {
 
   /** Fired on Escape so the UI can toggle pause without polling. */
   onPauseRequest: InputListener | null = null;
+  /** Fired on I / Tab so the UI can toggle the inventory. */
+  onInventoryRequest: InputListener | null = null;
   /** Fired when crouch toggles so the touch button can reflect state. */
   onCrouchChange: ((crouched: boolean) => void) | null = null;
 
@@ -150,6 +152,7 @@ export class InputController {
       this.keys.add(e.code);
       if (e.code === 'KeyC') this.toggleCrouch();
       if (e.code === 'KeyE') this.queueInteract();
+      if (e.code === 'KeyI' || e.code === 'Tab') this.onInventoryRequest?.();
     };
     const onKeyUp = (e: KeyboardEvent) => {
       this.keys.delete(e.code);

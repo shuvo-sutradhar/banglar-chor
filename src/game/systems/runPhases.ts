@@ -15,19 +15,18 @@ export type GamePhase =
 /**
  * Allowed run-state transitions (README §4). Every transition must be listed here;
  * anything else throws so bugs surface immediately instead of corrupting a run.
- *
- * `menu -> night` is a deliberate Phase 1 free-roam entry (docs/DECISIONS.md D-007).
- * It is removed once the Phase 2 preparation ritual exists.
+ * (The temporary Phase 1 `menu -> night` shortcut was removed in Phase 2; see D-007.)
  */
 export const PHASE_TRANSITIONS: Readonly<Record<GamePhase, readonly GamePhase[]>> = {
-  menu: ['preparation', 'night'],
+  menu: ['preparation'],
   preparation: ['night', 'menu'],
   night: ['entry', 'chase', 'caught', 'night-resolution', 'menu'],
-  entry: ['interior', 'night', 'chase', 'menu'],
-  interior: ['night', 'chase', 'caught', 'menu'],
-  chase: ['night', 'caught', 'night-resolution', 'menu'],
+  entry: ['interior', 'night', 'chase', 'caught', 'night-resolution', 'menu'],
+  interior: ['night', 'chase', 'caught', 'night-resolution', 'menu'],
+  chase: ['night', 'interior', 'caught', 'night-resolution', 'menu'],
   caught: ['night-resolution', 'results', 'menu'],
-  'night-resolution': ['dawn', 'results', 'menu'],
+  // Phase 2 ends the run at night-resolution; Phase 3 continues to dawn/bazaar/results.
+  'night-resolution': ['dawn', 'results', 'preparation', 'menu'],
   dawn: ['bazaar', 'menu'],
   bazaar: ['bargain', 'results', 'chase', 'menu'],
   bargain: ['bazaar', 'chase', 'results', 'menu'],

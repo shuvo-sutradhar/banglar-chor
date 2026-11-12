@@ -71,3 +71,15 @@ describe('PersistenceService', () => {
     expect(new PersistenceService(memoryStorage()).save(doc)).toBe(false);
   });
 });
+
+describe('Phase 2 save upgrade', () => {
+  it('accepts a Phase 1 save without new fields, filling defaults without a corruption notice', () => {
+    const phase1 = JSON.stringify({ version: 1, settings: { quality: 'low', reducedMotion: false, cameraSensitivity: 1, invertY: false, showControlHints: true, subtitles: true } });
+    const loaded = new PersistenceService(memoryStorage({ [SAVE_KEY]: phase1 })).load();
+    expect(loaded.notice).toBe('none');
+    expect(loaded.document.settings.quality).toBe('low');
+    expect(loaded.document.settings.volume).toBe(0.8);
+    expect(loaded.document.settings.roughDialogue).toBe(false);
+    expect(loaded.document.preparationDone).toBe(false);
+  });
+});

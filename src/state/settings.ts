@@ -12,9 +12,14 @@ export const settingsSchema = z.object({
   invertY: z.boolean(),
   showControlHints: z.boolean(),
   subtitles: z.boolean(),
+  // Added in Phase 2 with defaults so v1 saves from Phase 1 still validate.
+  volume: z.number().min(0).max(1).default(0.8),
+  muted: z.boolean().default(false),
+  /** Rough crowd lines in the catch scene (README §9). Off = family-friendly alternatives. */
+  roughDialogue: z.boolean().default(false),
 });
 
-export type Settings = z.infer<typeof settingsSchema>;
+export type Settings = z.output<typeof settingsSchema>;
 
 export const DEFAULT_SETTINGS: Settings = {
   quality: 'auto',
@@ -23,6 +28,9 @@ export const DEFAULT_SETTINGS: Settings = {
   invertY: false,
   showControlHints: true,
   subtitles: true,
+  volume: 0.8,
+  muted: false,
+  roughDialogue: false,
 };
 
 export type QualityProfile = {

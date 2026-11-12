@@ -15,7 +15,10 @@ import { useHudStore } from '../../state/useHudStore';
 import { useGameRuntime } from '../GameRuntime';
 import { PLAYER_SPAWN, PLAYER_TUNING } from '../data/tuning';
 import { cameraRelativeDirection, resolveMovementMode, stepHorizontalVelocity, targetSpeedFor, type MovementMode, type Vec2 } from '../physics/motorMath';
+import { PLAYER_COLLIDER } from '../physics/queries';
 import { ThiefModel } from './ThiefModel';
+import { setAction } from './rigTypes';
+import { FOOTSTEP_NOISE } from '../systems/noise';
 
 type KinematicController = ReturnType<ReturnType<typeof useRapier>['world']['createCharacterController']>;
 
@@ -60,6 +63,7 @@ export function Player() {
       targetHeading: Math.PI,
       heading: Math.PI,
       lastMode: 'idle' as MovementMode,
+      strideAccum: 0,
     }),
     [],
   );
@@ -115,11 +119,43 @@ export function Player() {
     const dt = world.timestep;
     const { input, camera, player } = runtime;
     player.elapsed += dt;
+    runtime.simTime += dt;
+
+    // Scripted move (crawling through the sidh): follows a designed path through an opening
+    // whose blocking collider is removed; bypasses the controller only for this cutscene-like move.
+    const script = player.script;
+    if (script) {
+      script.t = Math.min(script.duration, script.t + dt);
+      const u = script.t / script.duration;
+      const segs = script.path.length - 1;
+      const fi = Math.min(segs - 1e-6, u * segs);
+      const i = Math.floor(fi);
+      const k = fi - i;
+      const pa = script.path[i]!;
+      const pb = script.path[i + 1]!;
+      const nx = pa[0] + (pb[0] - pa[0]) * k;
+      const ny = pa[1] + (pb[1] - pa[1]) * k;
+      const nz = pa[2] + (pb[2] - pa[2]) * k;
+      const prev = body.translation();
+      body.setNextKinematicTranslation({ x: nx, y: ny, z: nz });
+      player.horizontalSpeed = Math.hypot(nx - prev.x, nz - prev.z) / dt;
+      player.position.set(nx, ny, nz);
+      motor.targetHeading = script.headingY;
+      motor.velocity.x = motor.velocity.z = 0;
+      setAction(player, script.action);
+      if (script.t >= script.duration) {
+        player.script = null;
+        setAction(player, null);
+        script.onDone();
+      }
+      return;
+    }
 
     input.readMove(motor.move);
     const magnitude = cameraRelativeDirection(motor.move.x, motor.move.y, camera.yaw, motor.direction);
     const mode = resolveMovementMode({ inputMagnitude: magnitude, sprintHeld: input.sprintHeld, crouched: input.crouched, grounded: motor.grounded });
-    const speed = targetSpeedFor(mode, magnitude);
+    // Carried weight slows walking and especially sprinting (greed vs. escape, README §8).
+    const speed = targetSpeedFor(mode, magnitude, player.loadRatio);
     motor.desired.x = motor.direction.x * speed;
     motor.desired.z = motor.direction.z * speed;
     stepHorizontalVelocity(motor.velocity, motor.desired, dt);
@@ -159,10 +195,21 @@ export function Player() {
     // Report the animation mode from real motion so "walking into a wall" reads as idle.
     const effectiveMode: MovementMode = actual < 0.15 && mode !== 'airborne' ? (input.crouched ? 'crouch-idle' : 'idle') : mode;
     player.mode = effectiveMode;
-    if (actual > 0.15) motor.targetHeading = Math.atan2(actualVx, actualVz);
+    if (player.faceHeading !== null) motor.targetHeading = player.faceHeading;
+    else if (actual > 0.15) motor.targetHeading = Math.atan2(actualVx, actualVz);
     if (effectiveMode !== motor.lastMode) {
       motor.lastMode = effectiveMode;
       useHudStore.getState().setMovementMode(effectiveMode);
+    }
+    if (player.action === 'pickup' && player.actionTime > 0.6) setAction(player, null);
+
+    // Footsteps are real noise events at the player's position (README §7).
+    motor.strideAccum += actual * dt;
+    if (motor.strideAccum >= FOOTSTEP_NOISE.strideMeters && motor.grounded) {
+      motor.strideAccum = 0;
+      const f = effectiveMode === 'run' ? FOOTSTEP_NOISE.run : effectiveMode === 'crouch-walk' ? FOOTSTEP_NOISE.crouch : FOOTSTEP_NOISE.walk;
+      const radius = f.radius * (1 + FOOTSTEP_NOISE.loadRadiusBoost * player.loadRatio);
+      runtime.noise.emit({ x: nx, y: ny, z: nz, radius, severity: f.severity, source: 'footstep', byPlayer: true }, runtime.simTime);
     }
   });
 
@@ -177,7 +224,7 @@ export function Player() {
   const { capsuleHalfHeight: hh, capsuleRadius: r } = PLAYER_TUNING;
   return (
     <RigidBody ref={bodyRef} name="player" type="kinematicPosition" colliders={false} position={[...PLAYER_SPAWN]} enabledRotations={[false, false, false]}>
-      <CapsuleCollider ref={colliderRef} args={[hh, r]} position={[0, hh + r, 0]} />
+      <CapsuleCollider ref={colliderRef} name={PLAYER_COLLIDER} args={[hh, r]} position={[0, hh + r, 0]} />
       <group ref={visualRef} rotation={[0, Math.PI, 0]}>
         <ThiefModel runtime={runtime.player} />
       </group>

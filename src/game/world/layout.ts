@@ -49,6 +49,8 @@ export type Zone = {
 };
 
 export const ZONES: readonly Zone[] = [
+  // Inside Rahim's house (walls at local ±2.75 × ±2.0 → world). Interior camera preset.
+  { id: 'rahim-inside', labelBn: 'রহিম চাচার ঘরের ভেতরে', center: { x: -12, z: 6 }, halfX: 2.0, halfZ: 2.75, rotY: 0, interior: true },
   { id: 'rahim-yard', labelBn: 'রহিম চাচার মাটির ঘর', center: { x: -11, z: 6 }, halfX: 5.5, halfZ: 6, rotY: 0, interior: false },
   { id: 'kuddus-yard', labelBn: 'কুদ্দুস মেম্বারের বাড়ি', center: { x: 13, z: -4 }, halfX: 7, halfZ: 6.5, rotY: 0, interior: false },
   { id: 'morol-yard', labelBn: 'মোড়ল বাড়ির টিনের ঘর', center: { x: -11, z: -20 }, halfX: 5.5, halfZ: 6.5, rotY: 0, interior: false },
@@ -140,4 +142,12 @@ export function isClearForScatter(p: XZ, roadClearance: number, extraRadius = 0)
   for (const path of FOOTPATHS) if (distanceToPolyline(p, path) < 1.6 + extraRadius) return false;
   for (const k of KEEP_OUT) if (Math.hypot(p.x - k.x, p.z - k.z) < k.r + extraRadius) return false;
   return true;
+}
+
+/** Transform a point from a structure's local frame (front = +z) into world space. */
+export function localToWorld(placement: Placement, local: readonly [number, number, number]): [number, number, number] {
+  const c = Math.cos(placement.rotY);
+  const s = Math.sin(placement.rotY);
+  const [lx, ly, lz] = local;
+  return [placement.x + lx * c + lz * s, ly, placement.z - lx * s + lz * c];
 }

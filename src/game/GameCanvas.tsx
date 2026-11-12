@@ -2,7 +2,15 @@ import { Suspense, useEffect, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Physics, useRapier } from '@react-three/rapier';
 import { PCFSoftShadowMap, type Material, type Mesh } from 'three';
-import { useAppStore } from '../state/useAppStore';
+import { useAppStore, WORLD_PHASES } from '../state/useAppStore';
+import { useRunStore } from '../state/useRunStore';
+import { debugEnabled, debugHooks, npcsDisabledForTests } from './debugHooks';
+import { WorldItems } from './world/WorldItems';
+import { NightDirector } from './systems/NightDirector';
+import { VillagerNpc } from './characters/VillagerNpc';
+import { RahimSleeper } from './characters/RahimSleeper';
+import { CaughtScene } from './scenes/CaughtScene';
+import { PrepCamera, PrepStage } from './scenes/PrepStage';
 import { useHudStore } from '../state/useHudStore';
 import type { QualityProfile } from '../state/settings';
 import { useQualityProfile } from './quality';
@@ -46,8 +54,7 @@ function SceneReadySignal() {
 function DebugBridge() {
   const runtime = useGameRuntime();
   useEffect(() => {
-    const enabled = import.meta.env.DEV || new URLSearchParams(window.location.search).has('debug');
-    if (!enabled) return;
+    if (!debugEnabled()) return;
     const w = window as unknown as { __sidhel?: unknown };
     w.__sidhel = {
       snapshot: () => ({
@@ -58,6 +65,19 @@ function DebugBridge() {
         crouched: runtime.input.crouched,
         app: { phase: useAppStore.getState().phase, paused: useAppStore.getState().paused },
         hud: { zone: useHudStore.getState().zoneLabel, focus: useHudStore.getState().focus?.id ?? null, caption: useHudStore.getState().caption?.text ?? null, mode: useHudStore.getState().movementMode },
+        npcs: [...runtime.npcs.values()].map((n) => ({ id: n.id, x: n.position.x, z: n.position.z, state: n.state, suspicion: n.suspicion, fx: n.facing.x, fz: n.facing.z })),
+        run: (() => {
+          const r = useRunStore.getState().run;
+          return r
+            ? { inventory: r.inventory.map((i) => i.lootId), inventoryIds: r.inventory.map((i) => i.instanceId), worldItems: r.worldItems.map((w) => ({ id: w.instanceId, lootId: w.lootId, x: w.position[0], y: w.position[1], z: w.position[2] })), holes: [...r.holesOpened], entered: [...r.houseIdsEntered], outcome: r.outcome, confiscated: r.confiscated.length, detections: r.detections, chases: r.chases, events: r.events.map((e) => e.type) }
+            : null;
+        })(),
+        loadRatio: runtime.player.loadRatio,
+        simTime: runtime.simTime,
+        script: runtime.player.script !== null,
+        cosmetic: { ...runtime.player.cosmetic },
+        prep: debugHooks.prep?.() ?? null,
+        entry: debugHooks.entry?.() ?? null,
       }),
       setCameraYaw: (yaw: number) => {
         runtime.camera.yaw = yaw;
@@ -80,19 +100,9 @@ function DebugPhysicsBridge() {
     const w = window as unknown as { __sidhelPhysics?: unknown };
     w.__sidhelPhysics = {
       colliders: () => world.colliders.len(),
-      flags: () => ({ excludeSensors: rapier.QueryFilterFlags.EXCLUDE_SENSORS }),
       interactionTargets: () => runtime.interactions.size,
-      ray: (o: [number, number, number], d: [number, number, number], max: number, flags?: number, groups?: number) => {
-        const variant = groups ?? 0;
-        const ray = new rapier.Ray({ x: o[0], y: o[1], z: o[2] }, { x: d[0], y: d[1], z: d[2] });
-        const hit =
-          variant === 1
-            ? world.castRay(ray, max, true, flags, undefined, undefined, runtime.player.body ?? undefined)
-            : variant === 2
-              ? world.castRay(ray, max, true, flags, undefined, undefined, undefined, () => true)
-              : variant === 3
-                ? world.castRay(ray, max, true, flags, undefined, undefined, undefined, (c) => (c.collisionGroups() >>> 16) !== 0)
-                : world.castRay(ray, max, true, flags);
+      ray: (o: [number, number, number], d: [number, number, number], max: number) => {
+        const hit = world.castRay(new rapier.Ray({ x: o[0], y: o[1], z: o[2] }, { x: d[0], y: d[1], z: d[2] }), max, true);
         return hit ? hit.timeOfImpact : null;
       },
     };
@@ -103,28 +113,41 @@ function DebugPhysicsBridge() {
   return null;
 }
 
+const SIMULATING = ['night', 'entry', 'interior', 'chase'];
+
 function World({ quality }: { quality: QualityProfile }) {
   const phase = useAppStore((s) => s.phase);
   const paused = useAppStore((s) => s.paused);
   const sessionId = useAppStore((s) => s.sessionId);
-  const inWorld = phase === 'night';
+  const inWorld = WORLD_PHASES.includes(phase);
+  const npcs = !npcsDisabledForTests();
 
   return (
-    <Physics timeStep={1 / 60} paused={paused || !inWorld} updatePriority={-50} gravity={[0, -22, 0]}>
+    <Physics timeStep={1 / 60} paused={paused || !SIMULATING.includes(phase)} updatePriority={-50} gravity={[0, -22, 0]}>
       <SceneReadySignal />
       <DebugPhysicsBridge />
       <VillageScenery />
-      {inWorld ? (
+      {inWorld && (
         <group key={sessionId}>
           <Player />
           <ThirdPersonCamera />
           <ZoneSystem />
           <InteractionDriver />
           <VillageInteractables />
+          <WorldItems />
+          <NightDirector />
+          {npcs && <VillagerNpc />}
+          <RahimSleeper />
+          {phase === 'caught' && <CaughtScene />}
         </group>
-      ) : (
-        <MenuCamera />
       )}
+      {phase === 'preparation' && (
+        <>
+          <PrepStage />
+          <PrepCamera />
+        </>
+      )}
+      {!inWorld && phase !== 'preparation' && <MenuCamera />}
       <NightAtmosphere quality={quality} />
     </Physics>
   );

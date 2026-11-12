@@ -1,9 +1,10 @@
 import { t } from '../../locales';
 import { useAppStore } from '../../state/useAppStore';
+import { audio } from '../../game/audio/AudioManager';
 
 /** Title screen over the live 3D village (the canvas orbits behind it). */
 export function MainMenu() {
-  const startNight = useAppStore((s) => s.startNight);
+  const startRun = useAppStore((s) => s.startRun);
   const setOverlay = useAppStore((s) => s.setOverlay);
   const sceneReady = useAppStore((s) => s.sceneReady);
 
@@ -13,7 +14,10 @@ export function MainMenu() {
         <h1 className="text-6xl font-semibold leading-tight text-gold drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)] sm:text-7xl">{t('gameTitle')}</h1>
         <p className="mb-8 mt-1 text-lg text-ink/90 drop-shadow">{t('tagline')}</p>
         <div className="flex w-full flex-col gap-3">
-          <button type="button" className="btn btn-primary text-xl" disabled={!sceneReady} onClick={startNight} data-testid="start-button">
+          <button type="button" className="btn btn-primary text-xl" disabled={!sceneReady} onClick={() => {
+              audio.unlock();
+              startRun();
+            }} data-testid="start-button">
             {sceneReady ? t('start') : t('loading')}
           </button>
           <button type="button" className="btn btn-ghost" onClick={() => setOverlay('help')}>

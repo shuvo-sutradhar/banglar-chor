@@ -1,6 +1,7 @@
 import {
   CanvasTexture,
   Color,
+  MeshBasicMaterial,
   MeshLambertMaterial,
   MeshStandardMaterial,
   RepeatWrapping,
@@ -239,15 +240,35 @@ type MaterialKey =
   | 'white'
   | 'iron'
   | 'cloth1'
-  | 'cloth2';
+  | 'cloth2'
+  | 'skinPlain'
+  | 'skinOld'
+  | 'shirtKhaki'
+  | 'genjiWhite'
+  | 'lungiGreen'
+  | 'lungiBrown'
+  | 'capWhite'
+  | 'hairGrey'
+  | 'brass'
+  | 'bronze'
+  | 'radioWood'
+  | 'glass'
+  | 'gold'
+  | 'ruby'
+  | 'gum'
+  | 'henWhite'
+  | 'comb'
+  | 'dust'
+  | 'holeDark';
 
-const materialCache = new Map<MaterialKey, MeshLambertMaterial | MeshStandardMaterial>();
+type AnyMat = MeshLambertMaterial | MeshStandardMaterial | MeshBasicMaterial;
+const materialCache = new Map<MaterialKey, AnyMat>();
 
 function lambert(color: ColorRepresentation, map?: Texture): MeshLambertMaterial {
   return new MeshLambertMaterial({ color: new Color(color), map: map ?? null });
 }
 
-function build(key: MaterialKey): MeshLambertMaterial | MeshStandardMaterial {
+function build(key: MaterialKey): AnyMat {
   switch (key) {
     case 'mud':
       return lambert(PALETTE.clay, makeTexture('mud', 128, mudPainter, [2, 1]));
@@ -308,10 +329,48 @@ function build(key: MaterialKey): MeshLambertMaterial | MeshStandardMaterial {
       return lambert('#ffffff', makeTexture('cloth-1', 64, checkPainter('#a45d46', '#e3ba70', '#f6f1e8'), [1, 1]));
     case 'cloth2':
       return lambert('#ffffff', makeTexture('cloth-2', 64, checkPainter('#5b3f8a', '#e7d9f5', '#d9c36a'), [1, 1]));
+    case 'skinPlain':
+      return lambert('#94603f');
+    case 'skinOld':
+      return lambert('#8a5d44');
+    case 'shirtKhaki':
+      return lambert('#a8946a');
+    case 'genjiWhite':
+      return lambert('#e9e4d8');
+    case 'lungiGreen':
+      return lambert('#ffffff', makeTexture('lungi-green', 64, checkPainter('#2f6a4a', '#c9b45a', '#1f3f2f'), [3, 2]));
+    case 'lungiBrown':
+      return lambert('#ffffff', makeTexture('lungi-brown', 64, checkPainter('#7a4a32', '#d8b27a', '#3a2418'), [3, 2]));
+    case 'capWhite':
+      return lambert('#f2efe6');
+    case 'hairGrey':
+      return lambert('#cfcac0');
+    case 'brass':
+      return new MeshStandardMaterial({ color: '#c9a03c', metalness: 0.8, roughness: 0.3 });
+    case 'bronze':
+      return new MeshStandardMaterial({ color: '#b5833f', metalness: 0.75, roughness: 0.35 });
+    case 'radioWood':
+      return lambert('#6b3f22');
+    case 'glass':
+      return new MeshStandardMaterial({ color: '#cfe8f0', transparent: true, opacity: 0.35, roughness: 0.1 });
+    case 'gold':
+      return new MeshStandardMaterial({ color: '#f0c24a', metalness: 0.9, roughness: 0.25, emissive: '#3a2a00' });
+    case 'ruby':
+      return new MeshStandardMaterial({ color: '#c21f3a', roughness: 0.2, emissive: '#3a0010' });
+    case 'gum':
+      return lambert('#e58a9a');
+    case 'henWhite':
+      return lambert('#efe7d6');
+    case 'comb':
+      return lambert('#d23a2a');
+    case 'dust':
+      return new MeshLambertMaterial({ color: '#b49a78', transparent: true, opacity: 0.6, depthWrite: false });
+    case 'holeDark':
+      return new MeshBasicMaterial({ color: '#0a0806' });
   }
 }
 
-export function mat(key: MaterialKey): MeshLambertMaterial | MeshStandardMaterial {
+export function mat(key: MaterialKey): AnyMat {
   let m = materialCache.get(key);
   if (!m) {
     m = build(key);

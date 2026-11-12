@@ -15,6 +15,14 @@ export type RegisteredTarget = InteractionTarget & {
   /** World-space focus point used for distance and line-of-sight checks. */
   position: Point3;
   onInteract: () => void;
+  /** For pick-up targets: which loot item (drives the HUD inspect card). */
+  lootId?: string;
+  /**
+   * How close to the target point an occluding hit may be and still count as visible.
+   * Large targets that sit inside their own collider (a house front) need ~0.9 m; small items
+   * need almost none, otherwise they could be grabbed through a wall.
+   */
+  losTolerance?: number;
 };
 
 export type FocusQuery = {

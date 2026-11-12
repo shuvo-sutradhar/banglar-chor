@@ -46,7 +46,7 @@ describe('angles', () => {
 
 describe('run phases', () => {
   it('allows the documented flow and rejects skips', () => {
-    expect(canTransition('menu', 'night')).toBe(true);
+    expect(canTransition('menu', 'preparation')).toBe(true);
     expect(canTransition('night', 'bazaar')).toBe(false);
     expect(canTransition('caught', 'bazaar')).toBe(false);
     expect(() => assertTransition('menu', 'results')).toThrow();
@@ -136,6 +136,17 @@ describe('interaction registry', () => {
     expect(() => r.register(make('a', 0, -1))).toThrow();
     off();
     expect(r.size).toBe(0);
+  });
+  it('small targets use a tight line-of-sight tolerance (no grabbing through walls)', () => {
+    const r = new InteractionRegistry();
+    r.register({ ...make('item', 0, -1.5), losTolerance: 0.12 });
+    // A wall 0.5 m before the item blocks it; the driver passes hit distance via the LOS callback.
+    const wallHitAt = 1.0;
+    const los = (t: RegisteredTarget, d: number) => wallHitAt >= d - (t.losTolerance ?? 0.9);
+    expect(r.findFocus({ ...query, hasLineOfSight: los })).toBeNull();
+    const big = new InteractionRegistry();
+    big.register(make('house', 0, -1.5));
+    expect(big.findFocus({ ...query, hasLineOfSight: los })?.id).toBe('house');
   });
   it('re-validates range and line of sight before interacting', () => {
     const r = new InteractionRegistry();

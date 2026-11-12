@@ -2,9 +2,10 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useRapier } from '@react-three/rapier';
 import { t } from '../../locales';
-import { useAppStore } from '../../state/useAppStore';
+import { CONTROL_PHASES, useAppStore } from '../../state/useAppStore';
 import { useHudStore } from '../../state/useHudStore';
 import { useGameRuntime } from '../GameRuntime';
+import { makeSightRayFilter } from '../physics/queries';
 import type { FocusQuery, RegisteredTarget } from './InteractionSystem';
 
 const FOCUS_INTERVAL = 0.1;
@@ -17,7 +18,8 @@ const CHEST_HEIGHT = 1.1;
  */
 export function InteractionDriver() {
   const runtime = useGameRuntime();
-  const { world, rapier } = useRapier();
+  const { world, rapier, colliderStates } = useRapier();
+  const sightFilter = useMemo(() => makeSightRayFilter(colliderStates), [colliderStates]);
   const timer = useRef(0);
   const scratch = useMemo(() => {
     const query: FocusQuery = { playerPosition: { x: 0, y: 0, z: 0 }, playerForward: { x: 0, z: -1 } };
@@ -35,15 +37,21 @@ export function InteractionDriver() {
       ray.dir.x = (target.position.x - from.x) * inv;
       ray.dir.y = (target.position.y - from.y) * inv;
       ray.dir.z = (target.position.z - from.z) * inv;
-      const hit = world.castRay(ray, distance, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, runtime.player.body ?? undefined);
-      // Targets sit on/inside their own object's collider; allow hits near the target point.
-      return hit === null || hit.timeOfImpact >= distance - 0.9;
+      const hit = world.castRay(ray, distance, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined, sightFilter);
+      // Large targets sit inside their own collider; small items get a tight tolerance.
+      return hit === null || hit.timeOfImpact >= distance - (target.losTolerance ?? 0.9);
     },
-    [world, rapier, runtime, scratch],
+    [world, rapier, scratch, sightFilter],
   );
 
   useFrame((_, dt) => {
-    if (useAppStore.getState().paused || !runtime.player.body) return;
+    const app = useAppStore.getState();
+    if (app.paused || !runtime.player.body) return;
+    if (!CONTROL_PHASES.includes(app.phase) || runtime.player.script) {
+      useHudStore.getState().setFocus(null);
+      runtime.input.consumeInteract();
+      return;
+    }
     const p = runtime.player.position;
     const q = scratch.query;
     q.playerPosition.x = p.x;
@@ -57,7 +65,7 @@ export function InteractionDriver() {
     if (timer.current >= FOCUS_INTERVAL) {
       timer.current = 0;
       const focus = runtime.interactions.findFocus(q);
-      useHudStore.getState().setFocus(focus ? { id: focus.id, kind: focus.kind, labelBn: focus.labelBn } : null);
+      useHudStore.getState().setFocus(focus ? { id: focus.id, kind: focus.kind, labelBn: focus.labelBn, lootId: focus.lootId } : null);
     }
 
     if (runtime.input.consumeInteract()) {

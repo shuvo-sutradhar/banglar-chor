@@ -3,7 +3,7 @@ import type { MovementMode } from '../game/physics/motorMath';
 import type { InteractionKind } from '../game/systems/InteractionSystem';
 import type { CameraPresetId } from '../game/data/tuning';
 
-export type HudFocus = { id: string; kind: InteractionKind; labelBn: string } | null;
+export type HudFocus = { id: string; kind: InteractionKind; labelBn: string; lootId?: string } | null;
 export type HudCaption = { id: number; text: string; speaker?: string } | null;
 
 /**

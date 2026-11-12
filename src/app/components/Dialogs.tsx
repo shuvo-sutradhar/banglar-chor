@@ -92,6 +92,15 @@ export function SettingsDialog() {
       <Toggle label={t('settingsReducedMotion')} checked={settings.reducedMotion} onChange={(v) => update({ reducedMotion: v })} />
       <Toggle label={t('settingsHints')} checked={settings.showControlHints} onChange={(v) => update({ showControlHints: v })} />
       <Toggle label={t('settingsSubtitles')} checked={settings.subtitles} onChange={(v) => update({ subtitles: v })} />
+      <label className="my-2 block">
+        <span className="mb-1 flex justify-between">
+          <span>শব্দের ভলিউম (অস্থায়ী সিন্থ শব্দ)</span>
+          <span className="tabular-nums text-moon">{Math.round(settings.volume * 100)}%</span>
+        </span>
+        <input type="range" min={0} max={1} step={0.05} value={settings.volume} className="h-10 w-full accent-lantern" onChange={(e) => update({ volume: Number(e.target.value) })} />
+      </label>
+      <Toggle label="সব শব্দ বন্ধ" checked={settings.muted} onChange={(v) => update({ muted: v })} />
+      <Toggle label="ধরা পড়ার দৃশ্যে রুক্ষ গ্রাম্য সংলাপ" checked={settings.roughDialogue} onChange={(v) => update({ roughDialogue: v })} />
 
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-moon/20 pt-4">
         <p className="text-sm text-moon">{t('settingsSavedLocal')}</p>
@@ -109,7 +118,9 @@ export function HelpDialog() {
     ['W A S D / ↑ ← ↓ →', 'হাঁটা (ক্যামেরার দিক অনুযায়ী)'],
     ['Shift (চেপে রাখুন)', 'দৌড়'],
     ['C', 'গুঁড়ি মেরে চলা চালু/বন্ধ'],
-    ['E', 'কাছের জিনিস দেখা'],
+    ['E', 'দেখা / তুলে নেওয়া / সিঁধ কাটা / ঢোকা-বের হওয়া'],
+    ['I / Tab', 'ঝোলা (ইনভেন্টরি) খোলা-বন্ধ'],
+    ['Space', 'প্রস্তুতি ও সিঁধ কাটার ছন্দে চাপা'],
     ['মাউস টেনে', 'ক্যামেরা ঘোরানো'],
     ['Esc', 'বিরতি / বন্ধ'],
   ];
@@ -132,7 +143,8 @@ export function HelpDialog() {
       <ul className="mb-4 list-disc space-y-1 pl-5 leading-relaxed">
         <li>বাঁ দিকের যেকোনো জায়গায় আঙুল রেখে টানুন — জয়স্টিক সেখানেই আসবে।</li>
         <li>ডান দিকে আঙুল টেনে ক্যামেরা ঘোরান।</li>
-        <li>“দৌড়” চেপে রাখুন, “গুঁড়ি” একবার চাপলে চালু/বন্ধ, “দেখুন” কাছে কিছু থাকলে জ্বলে ওঠে।</li>
+        <li>“দৌড়” চেপে রাখুন, “গুঁড়ি” একবার চাপলে চালু/বন্ধ, বড় বোতামটা কাছে কিছু থাকলে জ্বলে ওঠে (তুলে নাও / ঢোকো / বের হও)।</li>
+        <li>“ঝোলা” বোতামে ইনভেন্টরি; সেখান থেকে জিনিস ফেলে দেওয়া যায়।</li>
       </ul>
       <p className="rounded-xl bg-white/5 p-3 text-sm leading-relaxed text-moon">{t('prototypeNote')}</p>
     </Modal>

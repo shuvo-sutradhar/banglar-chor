@@ -19,6 +19,8 @@ export type InteractableProps = {
   maxDistance?: number;
   /** Ground height of the highlight ring. */
   groundY?: number;
+  lootId?: string;
+  losTolerance?: number;
   onInteract: () => void;
 };
 
@@ -26,7 +28,7 @@ export type InteractableProps = {
  * Registers a world-space interaction target. The highlight (floating marker + ground ring)
  * appears only while this target is the current focus — no omniscient indicators.
  */
-export function Interactable({ id, kind, labelBn, position, maxDistance = 2.8, groundY = 0.04, onInteract }: InteractableProps) {
+export function Interactable({ id, kind, labelBn, position, maxDistance = 2.8, groundY = 0.04, lootId, losTolerance, onInteract }: InteractableProps) {
   const runtime = useGameRuntime();
   const focused = useHudStore((s) => s.focus?.id === id);
   const markerRef = useRef<Group>(null);
@@ -45,9 +47,11 @@ export function Interactable({ id, kind, labelBn, position, maxDistance = 2.8, g
         maxDistance,
         enabled: true,
         position: { x, y, z },
+        lootId,
+        losTolerance,
         onInteract: () => handlerRef.current(),
       }),
-    [runtime, id, kind, labelBn, maxDistance, x, y, z],
+    [runtime, id, kind, labelBn, maxDistance, x, y, z, lootId, losTolerance],
   );
 
   useFrame(({ clock }) => {

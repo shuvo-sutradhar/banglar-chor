@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { useHudStore } from '../../state/useHudStore';
+import { useAppStore } from '../../state/useAppStore';
 import { INSPECTABLES, type InspectableDef } from '../data/inspectables';
 import { Buildings } from './Buildings';
 import { Interactable } from './Interactable';
@@ -28,6 +29,8 @@ export const VillageScenery = memo(function VillageScenery() {
 
 /** Interaction targets exist only while the player is in the world. */
 export function VillageInteractables() {
+  const phase = useAppStore((s) => s.phase);
+  if (phase === 'interior') return null;
   return (
     <>
       {INSPECTABLES.map((def) => (

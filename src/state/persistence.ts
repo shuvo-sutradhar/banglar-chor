@@ -9,9 +9,11 @@ export const saveDocumentSchema = z.object({
   version: z.literal(SAVE_VERSION),
   settings: settingsSchema,
   nickname: z.string().max(24).optional(),
+  /** Set after the first completed preparation ritual; enables the skip button. */
+  preparationDone: z.boolean().default(false),
 });
 
-export type SaveDocument = z.infer<typeof saveDocumentSchema>;
+export type SaveDocument = z.output<typeof saveDocumentSchema>;
 
 /** Minimal subset of the Web Storage API so tests can inject fakes. */
 export type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -21,7 +23,7 @@ export type LoadNotice = 'none' | 'corrupt-reset' | 'version-reset' | 'storage-u
 export type LoadResult = { document: SaveDocument; notice: LoadNotice };
 
 export function createDefaultDocument(): SaveDocument {
-  return { version: SAVE_VERSION, settings: { ...DEFAULT_SETTINGS } };
+  return { version: SAVE_VERSION, settings: { ...DEFAULT_SETTINGS }, preparationDone: false };
 }
 
 /** Safely obtain localStorage; returns null when blocked (private mode, sandboxed iframe, etc.). */
@@ -75,7 +77,7 @@ export class PersistenceService {
     if (!result.success) {
       // Salvage valid settings fields where possible instead of discarding everything.
       const salvaged = salvageSettings((parsed as { settings?: unknown }).settings);
-      return { document: { version: SAVE_VERSION, settings: salvaged }, notice: 'corrupt-reset' };
+      return { document: { version: SAVE_VERSION, settings: salvaged, preparationDone: false }, notice: 'corrupt-reset' };
     }
     return { document: result.data, notice: 'none' };
   }

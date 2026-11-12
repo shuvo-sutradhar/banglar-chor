@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint .",
-    "test": "node scripts/vitest.mjs run"
+    "test": "node scripts/vitest.mjs run",
+    "smoke": "node tests/smoke/smoke.mjs",
+    "check": "tsc -b && eslint . && node scripts/vitest.mjs run",
+    "smoke:phase2": "node tests/smoke/phase2.mjs"
   },
   "dependencies": {
     "@fontsource/hind-siliguri": "^5.3.0",

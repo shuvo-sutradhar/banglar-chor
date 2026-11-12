@@ -28,7 +28,7 @@ export const PLAYER_TUNING = {
   fullLoadSpeedPenalty: 0.45,
 } as const;
 
-export type CameraPresetId = 'exploration' | 'interior';
+export type CameraPresetId = 'exploration' | 'interior' | 'minigame' | 'chase' | 'caught';
 
 export type CameraPreset = {
   distance: number;
@@ -41,7 +41,16 @@ export type CameraPreset = {
 export const CAMERA_PRESETS: Record<CameraPresetId, CameraPreset> = {
   exploration: { distance: 5.4, targetHeight: 1.45, defaultPitch: 0.32, fov: 55 },
   interior: { distance: 3.1, targetHeight: 1.3, defaultPitch: 0.45, fov: 62 },
+  /** Over-the-shoulder 3/4 view of the wall during the entry challenge. */
+  minigame: { distance: 2.9, targetHeight: 1.0, defaultPitch: 0.3, fov: 55 },
+  /** Pulled back so pursuers stay in view. */
+  chase: { distance: 6.0, targetHeight: 1.5, defaultPitch: 0.36, fov: 60 },
+  /** Slow orbit around the comic catch. */
+  caught: { distance: 4.8, targetHeight: 1.0, defaultPitch: 0.42, fov: 52 },
 };
+
+/** Camera yaw for the entry challenge: behind-left of a thief facing Rahim's back wall (+X). */
+export const MINIGAME_CAMERA_YAW = -Math.PI / 2 + 0.6;
 
 export const CAMERA_TUNING = {
   minPitch: -0.12,

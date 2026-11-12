@@ -13,7 +13,29 @@ export const CAMERA_TRANSPARENT = 'camera-transparent';
 
 type ColliderStates = ReturnType<typeof useRapier>['colliderStates'];
 
-/** Predicate for the camera occlusion ray: solid world geometry only. */
-export function makeCameraBlocker(states: ColliderStates): (collider: RapierCollider) => boolean {
-  return (collider) => states.get(collider.handle)?.object.name !== CAMERA_TRANSPARENT;
+
+/** Name tag on the player's capsule so queries can skip it without holding a body reference. */
+export const PLAYER_COLLIDER = 'player-capsule';
+
+/**
+ * Camera occlusion: solid world geometry only (not the player, not thin props).
+ * The player is excluded by tag rather than by passing its RigidBody, because a body reference
+ * captured across React StrictMode remounts can be stale (found by the dev-mode smoke test).
+ */
+export function makeCameraRayFilter(states: ColliderStates): (collider: RapierCollider) => boolean {
+  return (collider) => {
+    const name = states.get(collider.handle)?.object.name;
+    return name !== CAMERA_TRANSPARENT && name !== PLAYER_COLLIDER && name !== NPC_COLLIDER;
+  };
 }
+
+/** Interaction line of sight: everything except the player blocks. */
+export function makeSightRayFilter(states: ColliderStates): (collider: RapierCollider) => boolean {
+  return (collider) => {
+    const name = states.get(collider.handle)?.object.name;
+    return name !== PLAYER_COLLIDER && name !== NPC_COLLIDER;
+  };
+}
+
+/** Name tag on NPC capsules (excluded from camera and sight rays). */
+export const NPC_COLLIDER = 'npc-capsule';
