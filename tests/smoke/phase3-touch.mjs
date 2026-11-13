@@ -31,16 +31,20 @@ async function tapAt(testId, getMs) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: (epoch + 40) / 1000 });
 }
 async function touchPersuade(quality) {
-  await page.getByTestId('persuasion-meter').waitFor({ timeout: 4000 });
+  await page.getByTestId('persuasion-meter').waitFor({ timeout: 45000 });
+  // Controllable minigame time (D-061): the needle runs at 1/4 speed for this slow driver.
+  await page.evaluate(() => window.__sidhel.setMinigameTimeScale(0.25));
   await wait(150);
   await tapAt('persuasion-tap', new Function(`
+    const k = window.__sidhel.minigameTimeScale();
     const s = window.__sidhel.snapshot().persuade;
     const half = 500 / s.speed;
     let ms = s.msUntilSweet;
     if (ms < 200) ms += half;
     ${quality === 'miss' ? 'ms += half / 2;' : ''}
-    return { ms, epoch: performance.timeOrigin + performance.now() + ms };`));
-  await page.getByTestId('persuasion-meter').waitFor({ state: 'detached', timeout: 4000 }).catch(() => {});
+    return { ms: ms / k, epoch: performance.timeOrigin + performance.now() + ms / k };`));
+  await page.getByTestId('persuasion-meter').waitFor({ state: 'detached', timeout: 45000 }).catch(() => {});
+  await page.evaluate(() => window.__sidhel.setMinigameTimeScale(1));
   await wait(700);
 }
 
@@ -52,10 +56,10 @@ try {
   // Night (movement by keys for path precision; interactions with the touch action button)
   await approachSidh(page);
   await page.getByTestId('touch-action').tap();
-  await page.getByTestId('entry-overlay').waitFor({ timeout: 8000 });
+  await page.getByTestId('entry-overlay').waitFor({ timeout: 45000 });
   if (await page.getByTestId('entry-hint').isVisible().catch(() => false)) await page.getByTestId('entry-start').tap();
   await playEntrySkilled(page, cdp);
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 15000 });
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 45000 });
   let s = await snap(page);
   await page.getByTestId('touch-crouch').tap();
   for (const lootId of ['lantern', 'metal-plate']) {
@@ -81,11 +85,11 @@ try {
   s = await snap(page);
   check('touch: picked items with the action button', s.run.inventory.length === 2, s.run.inventory.join(','));
   await page.getByTestId('leave-house').tap();
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 8000 });
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 45000 });
   await walkPath(page, ROUTE_TO_EXIT, { run: true, timeout: 25000, stopWhen: async () => (await snap(page)).app.phase !== 'night' });
-  await page.getByTestId('to-dawn').tap({ timeout: 10000 });
-  await page.getByTestId('dawn-skip').tap({ timeout: 10000 });
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'bazaar', null, { timeout: 15000 });
+  await page.getByTestId('to-dawn').tap({ timeout: 45000 });
+  await page.getByTestId('dawn-skip').tap({ timeout: 45000 });
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'bazaar', null, { timeout: 45000 });
   {
     await wait(2500);
     const m = await snap(page);
@@ -99,8 +103,16 @@ try {
   await page.waitForFunction(() => window.__sidhel.snapshot().hud.focus === 'merchant:hashem', null, { timeout: 5000 }).catch(() => {});
   check('touch: action button reads "দরদাম" next to a merchant', (await page.getByTestId('touch-action').textContent())?.includes('দরদাম'));
   await page.getByTestId('touch-action').tap();
-  await page.getByTestId('trade-panel').waitFor({ timeout: 5000 });
+  await page.getByTestId('trade-panel').waitFor({ timeout: 45000 });
   await shot(page, 'T1-touch-trade');
+  {
+    // Phase 4C mobile audit: the trade sheet fits the landscape phone and every control is ≥ 44 px.
+    const vp = page.viewportSize();
+    const r = await page.getByTestId('trade-panel').locator('[role=dialog]').boundingBox();
+    check('touch: trade panel fits the landscape viewport', r && r.y >= 0 && r.y + r.height <= vp.height + 1 && r.x >= 0 && r.x + r.width <= vp.width + 1, JSON.stringify(r));
+    const small = await page.evaluate(() => [...document.querySelectorAll('[data-testid=trade-panel] button')].filter((b) => b.offsetParent).map((b) => ({ id: b.dataset.testid ?? b.textContent.trim().slice(0, 10), r: b.getBoundingClientRect() })).filter((x) => x.r.height < 43.5).map((x) => `${x.id} ${Math.round(x.r.height)}px`));
+    check('touch: trade buttons ≥ 44 px tall', small.length === 0, small.join(', '));
+  }
   await page.locator('[data-testid=trade-item][data-loot="metal-plate"]').tap();
   await page.waitForFunction(() => { const t = window.__sidhel.snapshot().trade; return t && t.phase === 'offer' && !t.examining; }, null, { timeout: 8000 });
   const o0 = (await snap(page)).trade.offer;
@@ -136,7 +148,7 @@ try {
   check('market catch: the watchman catches a thief who stays put', s.app.phase === 'caught' && s.market.outcome === 'caught', `${s.app.phase} ${s.market?.outcome}`);
   check('market catch: unsold item confiscated, half the money fined', s.run.inventory.length === 0 && s.run.confiscated === 1 && s.market.money === earned - Math.floor(earned / 2), `money ${s.market.money}/${earned}`);
   await shot(page, 'T2-market-caught');
-  await page.getByTestId('results').waitFor({ timeout: 15000 });
+  await page.getByTestId('results').waitFor({ timeout: 45000 });
   s = await snap(page);
   check('market catch: results show market-caught with the fine', s.lastResult?.outcome === 'market-caught' && (await page.getByText('হাটে ধরা খাওয়ার জরিমানা').isVisible()));
   await shot(page, 'T3-results-market-caught');

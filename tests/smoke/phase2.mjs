@@ -92,13 +92,13 @@ async function runA(browser) {
   await wait(500);
   s = await snap(page);
   check('entry: mistimed taps raise noise until the attempt fails', s.run.events.includes('entry-fail'), `${s.run.events.join(',')} entry=${JSON.stringify(s.entry)} phase=${s.app.phase}`);
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   check('entry: failure returns control to the player (recovery path)', s.app.phase === 'night' && s.run.holes.length === 0);
   await page.keyboard.press('KeyE');
   await wait(400);
   s = await snap(page);
-  check('entry: immediate retry is refused with a clear cooldown message', s.app.phase === 'night' && (s.hud.caption ?? '').includes('একটু পরে'), String(s.hud.caption));
+  check('entry: immediate retry is refused with a clear cooldown message', s.app.phase === 'night' && s.hud.captionLog.some((c) => c.includes('একটু পরে')), s.hud.captionLog.slice(-3).join(' | '));
   await wait(6500);
 
   // Attempt 2: skilled timing → success → crawl → interior.
@@ -109,7 +109,7 @@ async function runA(browser) {
   await wait(200);
   await shot(page, 'A3-entry-playing');
   await playEntrySkilled(page, cdp);
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 12000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   check('entry: skilled timing succeeds and opens the sidh', s.run.holes.includes('rahim'));
   check('interior: crawled through into the real 3D room (phase interior)', s.app.phase === 'interior' && s.player.x > -14 && s.player.x < -10, `phase=${s.app.phase} x=${s.player.x.toFixed(2)}`);
@@ -132,8 +132,8 @@ async function runA(browser) {
     } else if (ok) {
       const carriedKg = s.run.inventory.reduce((acc, id) => acc + weights[id], 0);
       if (carriedKg + weights[item.lootId] > 6 + 1e-9) {
-        fullFeedback = (s.hud.caption ?? '').includes('জায়গা') && (await page.getByTestId('inventory-panel').isVisible().catch(() => false));
-        check('greed: inventory-full pickup refused with clear feedback', fullFeedback, `${carriedKg}+${weights[item.lootId]} kg: ${s.hud.caption}`);
+        fullFeedback = s.hud.captionLog.some((c) => c.includes('জায়গা')) && (await page.getByTestId('inventory-panel').isVisible().catch(() => false));
+        check('greed: inventory-full pickup refused with clear feedback', fullFeedback, `${carriedKg}+${weights[item.lootId]} kg: ${s.hud.captionLog.slice(-3).join(' | ')}`);
         if (await page.getByTestId('inventory-panel').isVisible().catch(() => false)) await page.keyboard.press('KeyI');
         break;
       }
@@ -164,14 +164,14 @@ async function runA(browser) {
   // Leave voluntarily with the HUD button.
   await page.keyboard.press('KeyC');
   await page.getByTestId('leave-house').click();
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 8000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   check('interior: player can leave the house voluntarily (back outside)', s.app.phase === 'night' && s.player.x < -14.8, `x=${s.player.x.toFixed(2)}`);
   const carried = [...s.run.inventory];
 
   // Escape to the safe exit.
   await walkPath(page, ROUTE_TO_EXIT, { run: true, timeout: 25000, stopWhen: async () => (await snap(page)).app.phase === 'night-resolution' });
-  await page.getByTestId('night-resolution').waitFor({ timeout: 8000 }).catch(() => {});
+  await page.getByTestId('night-resolution').waitFor({ timeout: 45000 }).catch(() => {});
   s = await snap(page);
   check('escape: reaching the southern edge ends the night as an escape with loot', s.app.phase === 'night-resolution' && s.run.outcome === 'escaped-with-loot', `${s.app.phase} ${s.run.outcome}`);
   const listed = await page.getByTestId('resolution-items').locator('li').count().catch(() => 0);
@@ -201,7 +201,7 @@ async function runA(browser) {
   await page.getByTestId('entry-overlay').waitFor();
   if (await page.getByTestId('entry-hint').isVisible().catch(() => false)) await page.getByTestId('entry-start').click();
   await playEntrySkilled(page, cdp);
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 12000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   const nearest = [...s.run.worldItems].filter((x) => x.lootId !== 'chicken').sort((a, b) => Math.hypot(a.x + 13.25, a.z - 6) - Math.hypot(b.x + 13.25, b.z - 6))[0];
   await page.keyboard.press('KeyC');
@@ -211,26 +211,29 @@ async function runA(browser) {
   const grabbedWith = s.run.inventory.length;
   // Pace around the room upright until Rahim wakes.
   let rahimWoke = false;
+  let countdown = false;
   for (let i = 0; i < 12 && !rahimWoke; i++) {
     await walkPath(page, [[-11.2, 7.6], [-12.6, 5.6]], { tol: 0.5, timeout: 5000 });
     rahimWoke = (await snap(page)).npcs.find((n) => n.id === 'rahim')?.state === 'awake';
+    if (rahimWoke) countdown = await page.getByTestId('rahim-countdown').waitFor({ timeout: 45000 }).then(() => true).catch(() => false);
   }
   s = await snap(page);
   check('NPC (Rahim): walking upright near the sleeper wakes him via hearing', rahimWoke, JSON.stringify(s.npcs.find((n) => n.id === 'rahim')));
-  const countdown = await page.getByTestId('rahim-countdown').isVisible().catch(() => false);
   check('NPC (Rahim): fair warning countdown before he grabs', countdown);
   await shot(page, 'C1-rahim-awake');
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'caught', null, { timeout: 12000 }).catch(() => {});
+  // The 6.4 s catch scene can end between two slow samples: verify the outcome itself.
+  await page.waitForFunction(() => window.__sidhel.snapshot().run.outcome === 'caught', null, { timeout: 45000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'caught', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
-  check('catch: staying inside gets the thief caught (phase caught)', s.app.phase === 'caught');
+  check('catch: staying inside gets the thief caught (phase caught)', s.run.outcome === 'caught' && ['caught', 'night-resolution'].includes(s.app.phase), `${s.run.outcome} ${s.app.phase}`);
   check('catch: all carried loot confiscated immediately', s.run.inventory.length === 0 && s.run.confiscated === grabbedWith && s.run.outcome === 'caught', `confiscated ${s.run.confiscated}/${grabbedWith}`);
   await page.getByTestId('caught-overlay').waitFor();
-  await page.getByTestId('caught-skip').waitFor({ timeout: 6000 }).catch(() => {});
+  await page.getByTestId('caught-skip').waitFor({ timeout: 45000 }).catch(() => {});
   await shot(page, 'C2-caught-scene');
   const lines = await page.getByTestId('caught-overlay').textContent();
   check('catch: comic subtitled 3D scene plays (not a static screen)', (lines ?? '').includes('ধরা খাইছি') && (await page.getByTestId('caught-skip').isVisible()));
   // Skip if still showing (it also auto-advances after ~6 s).
-  await page.getByTestId('caught-skip').click({ timeout: 2000 }).catch(() => {});
+  await page.getByTestId('caught-skip').click({ timeout: 45000 }).catch(() => {});
   await page.getByTestId('night-resolution').waitFor();
   const title = await page.getByTestId('resolution-title').textContent();
   check('catch: resolution shows the caught outcome with penalty', (title ?? '').includes('ধরা') && (await page.getByText('ধরা খাওয়ার জরিমানা').isVisible()));
@@ -285,7 +288,7 @@ async function runB(browser) {
   await page.keyboard.down('KeyW');
   await aimAt(fleeTarget[0], fleeTarget[1]);
   console.log(`info  alarm raised at distance ${alarmedAt?.toFixed(1)} m`);
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'chase', null, { timeout: 3000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'chase', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   check('NPC: suspicion builds from sight (meter rises, suspicious state)', maxSusp > 30 && (states.has('suspicious') || states.has('alerted') || states.has('chasing')), `max=${maxSusp.toFixed(0)} states=${[...states].join(',')}`);
   check('chase: detection triggers a real chase phase', s.app.phase === 'chase', s.app.phase);
@@ -312,7 +315,7 @@ async function runB(browser) {
   await walkPath(page, [fleeTarget], { run: true, brake: false, tol: 1.2, timeout: 25000, stopWhen: async () => { const q = await snap(page); return q.app.phase === 'night' || (q.app.phase !== 'chase' && q.app.phase !== 'night'); } });
   clearInterval(tracker);
   console.log(`info  flee distances: ${trail.join(' ')}`);
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 8000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   const m2 = s.npcs.find((n) => n.id === 'mojnu') ?? { state: 'none' };
   check('escape: reaching the village edge ends the chase and the NPC gives up', s.app.phase === 'night' && ['searching', 'returning', 'patrol', 'idle'].includes(m2.state), `${s.app.phase} npc=${m2.state} outcome=${s.run?.outcome}`);
@@ -339,7 +342,7 @@ async function runB(browser) {
   check('catch: the patrol catches a thief who stays in reach (phase caught)', s.app.phase === 'caught' && s.run.outcome === 'caught', `${s.app.phase} ${s.run.outcome} npc=${mc?.state} d=${mc ? Math.hypot(mc.x - s.player.x, mc.z - s.player.z).toFixed(1) : '-'} p=${s.player?.x.toFixed(1)},${s.player?.z.toFixed(1)}`);
   await wait(2500);
   await shot(page, 'B3-caught-scene');
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night-resolution', null, { timeout: 10000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night-resolution', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   check('catch: vignette auto-advances to the resolution', s.app.phase === 'night-resolution');
   check('catch: detections recorded in the run', s.run.detections >= 1 && s.run.chases >= 1, `det=${s.run.detections} chases=${s.run.chases}`);

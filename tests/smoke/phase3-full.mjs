@@ -66,12 +66,20 @@ try {
   let s = await snap(page);
   check('night: patrol NPC active (NPC-enabled run)', Boolean(mojnu(s)));
   s = await waitForMojnu(page, northbound, 'heading north on the road');
+  // Test-only time control (D-052): the minutes spent waiting for the patrol's position are not
+  // the thief's night. Without this the 6-minute night clock ran out before the entry at headless
+  // frame rates (the suite never completed). Wind the clock back to 20 s after the start.
+  {
+    const before = await page.evaluate(() => window.__sidhel.snapshot().simTime);
+    await page.evaluate(() => window.__sidhel.advanceClock(-Math.max(0, window.__sidhel.snapshot().simTime - 20)));
+    console.log(`info  night clock rewound from ${before.toFixed(0)} s to 20 s after waiting for the patrol`);
+  }
   await approachSidh(page, { stopWhen: async () => (await snap(page)).app.phase !== 'night' });
   await page.keyboard.press('KeyE');
-  await page.getByTestId('entry-overlay').waitFor({ timeout: 8000 });
+  await page.getByTestId('entry-overlay').waitFor({ timeout: 45000 });
   if (await page.getByTestId('entry-hint').isVisible().catch(() => false)) await page.getByTestId('entry-start').click();
   await playEntrySkilled(page, cdp);
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 15000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   check('night: entered Rahim\'s house with the patrol on duty', s.app.phase === 'interior', `${s.app.phase} npc=${mojnu(s)?.state}`);
   await page.keyboard.press('KeyC');
@@ -85,9 +93,9 @@ try {
   check('night: looted lantern + kansa plate', s.run.inventory.includes('lantern') && s.run.inventory.includes('metal-plate'), s.run.inventory.join(','));
   await waitForMojnu(page, (m) => northbound(m) || (m.z < -1 && m.x > -15), 'away from the escape route');
   await page.getByTestId('leave-house').click();
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 8000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 45000 }).catch(() => {});
   await walkPath(page, ROUTE_TO_EXIT, { run: true, timeout: 25000, stopWhen: async () => (await snap(page)).app.phase !== 'night' });
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night-resolution', null, { timeout: 8000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night-resolution', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   check('night: escaped with loot past an active patrol', s.app.phase === 'night-resolution' && s.run.outcome === 'escaped-with-loot', `${s.app.phase} ${s.run?.outcome}`);
   const villageCalls = s.render.calls;
@@ -102,7 +110,7 @@ try {
   await shot(page, 'F1-dawn');
   check('dawn: real 3D lighting animates night → morning', d1 > d0 && d1 > 0.1, `${d0.toFixed(2)} → ${d1.toFixed(2)}`);
   await page.getByTestId('dawn-skip').click();
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'bazaar', null, { timeout: 15000 });
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'bazaar', null, { timeout: 45000 });
   await wait(2000);
   s = await snap(page);
   check('bazaar: skip moves to the bazaar zone without a reload', s.zone === 'bazaar' && s.player !== null && s.market !== null);
@@ -131,7 +139,7 @@ try {
   check('negotiation: no false sale — lantern still in inventory, no money', s.run.inventory.includes('lantern') && s.market.money === 0 && !s.run.events.includes('sale'));
   check('negotiation: Jalil now more suspicious / less patient (persistent merchant state)', s.market.merchants.jalil.patience < 100 || s.market.merchants.jalil.suspicion > 0, JSON.stringify(s.market.merchants.jalil));
   await page.getByTestId('trade-leave').click();
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'bazaar', null, { timeout: 4000 });
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'bazaar', null, { timeout: 45000 });
 
   // ---------------- Scenario 1: successful sale (Hashem, kansa plate) ----------------
   check('bazaar: walk across the haat to হাশেম কাকা', await talkTo(page, 'hashem', [[7.5, 7], [0, 12], [-7.5, 7], [-11.0, -2]]));
@@ -167,7 +175,7 @@ try {
   check('recognition: failed excuses escalate to a confrontation and alarm', s.market.wanted === true && s.market.recognitions >= 1 && s.market.merchants.hashem.closed === true, JSON.stringify({ wanted: s.market.wanted, rec: s.market.recognitions }));
 
   // ---------------- Scenario 4: market chase and escape ----------------
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'chase', null, { timeout: 30000 }).catch(() => {});
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'chase', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   // Bolt for the gate away from the watchman AT ONCE (as a player would); check the HUD and take
   // the screenshot while running — at headless frame rates each check costs real seconds.
@@ -205,14 +213,14 @@ try {
     console.log(`info  chase end: phase ${e.app.phase}, player ${e.player ? `(${e.player.x.toFixed(1)}, ${e.player.z.toFixed(1)})` : '-'}, watchman ${we ? `(${we.x.toFixed(1)}, ${we.z.toFixed(1)}) ${we.state}` : '-'}`);
   }
   await page.waitForFunction(() => ['results', 'caught'].includes(window.__sidhel.snapshot().app.phase), null, { timeout: 10000 }).catch(() => {});
-  if ((await snap(page)).app.phase === 'caught') await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'results', null, { timeout: 15000 }).catch(() => {});
+  if ((await snap(page)).app.phase === 'caught') await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'results', null, { timeout: 45000 }).catch(() => {});
   s = await snap(page);
   const escaped = s.run.outcome === 'escaped-with-loot' && s.market.outcome === 'escaped';
   check('market escape: running out of a gate ends the chase as an escape', escaped, `market outcome=${s.market?.outcome}`);
   if (escaped) check('market escape: money and remaining item states intact', s.market.money === moneyBefore && s.run.inventory.includes('lantern'), `money ${s.market.money} inv ${s.run.inventory}`);
 
   // ---------------- Results + save ----------------
-  await page.getByTestId('results').waitFor({ timeout: 10000 });
+  await page.getByTestId('results').waitFor({ timeout: 45000 });
   await shot(page, 'F7-results');
   const finalScore = await page.getByTestId('final-score').textContent();
   const line = await page.getByTestId('results-line').textContent();

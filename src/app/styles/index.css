@@ -101,6 +101,10 @@ body,
   color: #2a1a0c;
   border-color: #f6f1e8;
 }
+.touch-btn:active {
+  transform: scale(0.93);
+  filter: brightness(1.25);
+}
 .touch-btn[aria-disabled='true'] {
   opacity: 0.45;
 }

@@ -17,7 +17,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
           <h2 id={titleId} className="text-xl font-semibold text-gold">
             {title}
           </h2>
-          <button ref={closeRef} type="button" className="btn btn-ghost !min-h-11 !px-3" onClick={onClose} aria-label={t('close')}>
+          <button ref={closeRef} type="button" className="btn btn-ghost !min-h-11 !min-w-11 !px-3" onClick={onClose} aria-label={t('close')}>
             ✕
           </button>
         </div>

@@ -27,7 +27,9 @@
     "voice:manifest": "node scripts/assets/voice-manifest.mjs",
     "voice:script": "node scripts/assets/voice-manifest.mjs --script",
     "smoke:phase4b": "node tests/smoke/phase4b.mjs",
-    "smoke:phase4b-touch": "node tests/smoke/phase4b-touch.mjs"
+    "smoke:phase4b-touch": "node tests/smoke/phase4b-touch.mjs",
+    "smoke:multinight": "node tests/smoke/multinight.mjs",
+    "perf:npc": "node tests/visual/perf-npc.mjs"
   },
   "dependencies": {
     "@fontsource/hind-siliguri": "^5.3.0",

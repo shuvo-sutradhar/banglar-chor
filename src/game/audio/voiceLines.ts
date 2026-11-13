@@ -179,7 +179,43 @@ export function lineText(line: VoiceLine, rough: boolean): string {
   return rough && line.roughText ? line.roughText : line.text;
 }
 
-/** Where the recorded file for a line lives (relative to the site base). */
-export function voiceFile(line: Pick<VoiceLine, 'id' | 'character'>, rough = false): string {
-  return `assets/audio/voice/${line.character}/${line.id}${rough ? '.rough' : ''}.ogg`;
+/** Where the recorded file for a line lives (relative to the site base). Take 1 has no suffix. */
+export function voiceFile(line: Pick<VoiceLine, 'id' | 'character'>, rough = false, take = 1): string {
+  return `assets/audio/voice/${line.character}/${line.id}${rough ? '.rough' : ''}${take > 1 ? `.${take}` : ''}.ogg`;
+}
+
+/** Up to this many alternative takes per line (`<id>.ogg`, `<id>.2.ogg` … `<id>.4.ogg`). */
+export const MAX_TAKES = 4;
+
+/**
+ * Recorded takes of a line that actually exist (pure; `available` = listed files). Rough lines
+ * fall back to the family takes when no rough recording exists, so a missing rough file never
+ * silences a line that has a family recording.
+ */
+export function voiceTakes(line: Pick<VoiceLine, 'id' | 'character' | 'roughText'>, rough: boolean, available: ReadonlySet<string>): string[] {
+  const pick = (r: boolean) => Array.from({ length: MAX_TAKES }, (_, i) => voiceFile(line, r, i + 1)).filter((f) => available.has(f));
+  if (rough && line.roughText) {
+    const r = pick(true);
+    if (r.length) return r;
+  }
+  return pick(false);
+}
+
+/**
+ * Recording order for the voice session (Phase 4C brief): the lines that matter most first.
+ * Lower = record earlier. Lines not matched fall in the last group.
+ */
+export function recordingPriority(line: Pick<VoiceLine, 'id' | 'character'>): number {
+  const id = line.id;
+  if (line.character === 'thief' && !/^thief\.(eat|rest|shop)/.test(id)) return 1;
+  if (line.character === 'rahim') return 2;
+  if (line.character === 'mojnu') return 3;
+  if (/^villager\.(chor|dhor|oi|dawn|memory)/.test(id)) return 4;
+  if (/^(villager\.(catch|punch|market-crowd)|watchman\.(catch|fine))/.test(id)) return 5;
+  if (line.character === 'merchant-hashem') return 6;
+  if (line.character === 'merchant-jalil') return 7;
+  if (line.character === 'merchant-bokul') return 8;
+  if (/^thief\.(eat|rest)/.test(id)) return 9;
+  if (/^thief\.shop/.test(id)) return 10;
+  return 11;
 }

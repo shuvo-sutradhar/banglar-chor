@@ -1,4 +1,5 @@
-import { useRef, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { batchingDisabled, batchRig, liveRigBatches, rigFarFromCamera } from './rigBatcher';
 import { MeshStandardMaterial, type Group, type Material } from 'three';
 import { useFrame } from '@react-three/fiber';
 import { timed } from '../perfCounters';
@@ -88,6 +89,20 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
   const lungi = useRef<Group>(null);
   const headbandRef = useRef<Group>(null);
   const sackRef = useRef<Group>(null);
+  const rootRef = useRef<Group>(null);
+
+  // Batch the rig's parts into a few skinned meshes after mount (D-064); the groups animated
+  // below are the skeleton, so posing is unchanged. `?debug=1&nobatch=1` disables it for A/B.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root || batchingDisabled()) return;
+    const b = batchRig(root);
+    liveRigBatches.add(b.stats);
+    return () => {
+      liveRigBatches.delete(b.stats);
+      b.dispose();
+    };
+  }, [look]);
 
   const p = useRef<Params>({ hip: 0.84, lean: 0, swing: 0, armSwing: 0, elbowL: 0.15, elbowR: 0.15, armLX: 0, armRX: 0, armLZ: -0.12, armRZ: 0.12, headYaw: 0, headPitch: 0, sideLean: 0, hipDrop: 0, bob: 0 });
   const phase = useRef(0);
@@ -95,7 +110,8 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
 
   const tick = (rawDt: number) => {
     if (useAppStore.getState().paused) return;
-    const dt = Math.min(rawDt, 0.1);
+    // (up to 0.35 s: far rigs receive 3 frames of accumulated time at once, see the LOD below)
+    const dt = Math.min(rawDt, 0.35);
     driver.actionTime += dt;
     const t = driver.actionTime;
     const a = p.current;
@@ -348,14 +364,26 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
       look.skin.metalness = 0.02 + 0.12 * oil;
     }
   };
-  useFrame((_, rawDt) => timed('rig', () => tick(rawDt)));
+  // Distant rigs (> 22 m from the camera) pose every 3rd frame with the accumulated time: same
+  // motion, a third of the CPU (D-064). Near ones update every frame.
+  const lod = useRef({ acc: 0, frame: 0 });
+  useFrame((state, rawDt) => {
+    const root = rootRef.current;
+    const l = lod.current;
+    l.acc += rawDt;
+    l.frame++;
+    if (root && rigFarFromCamera(root, state.camera.position) && l.frame % 3 !== 0) return;
+    const dt = l.acc;
+    l.acc = 0;
+    timed('rig', () => tick(dt));
+  });
 
   const skin = look.skin;
   const torso = look.top ?? skin;
   const detail = !look.lowDetail;
   const skirt = look.skirt ?? 1;
   return (
-    <group>
+    <group ref={rootRef}>
       <group ref={pelvis} position={[0, 0.84, 0]}>
         {([
           [-0.11, thighL, shinL],
@@ -380,7 +408,7 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
           <mesh geometry={UNIT_CYLINDER} material={torso} position={[0, 0.27, 0]} scale={[0.42, 0.54, 0.32]} castShadow />
           {detail && <mesh geometry={UNIT_SPHERE} material={torso} position={[0, 0.03, 0.02]} scale={[0.42, 0.22, 0.34]} />}
           {look.sack && (
-            <group ref={sackRef} position={[0, 0.32, -0.27]} visible={false}>
+            <group ref={sackRef} position={[0, 0.32, -0.27]} visible={false} userData={{ noBatch: true }}>
               <mesh geometry={UNIT_SPHERE} material={mat('weave')} scale={[0.42, 0.5, 0.3]} />
               <mesh geometry={UNIT_CYLINDER} material={mat('gamcha')} position={[0, 0.27, 0.02]} scale={[0.16, 0.08, 0.16]} />
             </group>
@@ -401,7 +429,7 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
             {look.hood && <mesh geometry={UNIT_SPHERE} material={look.hood} position={[0, 0.28, -0.04]} scale={[0.42, 0.42, 0.42]} />}
             {look.glasses && <mesh geometry={UNIT_BOX} material={mat('black')} position={[0, 0.245, 0.175]} scale={[0.26, 0.06, 0.03]} />}
             {look.headband && (
-              <group ref={headbandRef} visible={Boolean(look.alwaysHeadband)}>
+              <group ref={headbandRef} visible={Boolean(look.alwaysHeadband)} userData={{ noBatch: true }}>
                 <mesh geometry={UNIT_CYLINDER} material={look.headband} position={[0, 0.29, 0]} scale={[0.39, 0.07, 0.39]} />
                 <mesh geometry={UNIT_BOX} material={look.headband} position={[0, 0.27, -0.21]} rotation={[0.5, 0, 0.3]} scale={[0.06, 0.16, 0.02]} />
               </group>
@@ -435,7 +463,7 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
               <group ref={foreRef} position={[0, -0.3, 0]}>
                 <mesh geometry={UNIT_CYLINDER} material={skin} position={[0, -0.13, 0]} scale={[0.085, 0.27, 0.085]} />
                 {detail && <mesh geometry={UNIT_SPHERE} material={skin} position={[0, -0.29, 0]} scale={[0.1, 0.11, 0.1]} />}
-                {right && look.rightHand && <group position={[0, -0.42, 0.02]}>{look.rightHand}</group>}
+                {right && look.rightHand && <group position={[0, -0.42, 0.02]} userData={{ noBatch: true }}>{look.rightHand}</group>}
               </group>
             </group>
           ))}

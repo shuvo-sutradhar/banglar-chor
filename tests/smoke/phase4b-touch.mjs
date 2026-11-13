@@ -119,6 +119,16 @@ try {
       check(`${tag}: all controls inside the viewport`, ids.every((id) => boxes[id] && boxes[id].x >= 0 && boxes[id].y >= 0 && boxes[id].x + boxes[id].width <= vp.width + 1 && boxes[id].y + boxes[id].height <= vp.height + 1), JSON.stringify(boxes['touch-action']));
       await page.screenshot({ path: join(SHOTS, `${tag}-night-controls.png`) });
 
+      // Small-screen inventory: opens from the touch button, fits, and its buttons are tappable.
+      await page.getByTestId('touch-inventory').tap();
+      await page.getByTestId('inventory-panel').waitFor({ timeout: 45000 });
+      check(`${tag}: inventory sheet fits the viewport`, await insideViewport(page, 'inventory-panel', vp));
+      const invSmall = await smallTargets(page, 'inventory-panel');
+      check(`${tag}: inventory buttons ≥ 44 px`, invSmall.length === 0, invSmall.join(', '));
+      await page.screenshot({ path: join(SHOTS, `${tag}-inventory.png`) });
+      await page.getByTestId('touch-inventory').tap();
+      await page.getByTestId('inventory-panel').waitFor({ state: 'detached', timeout: 45000 }).catch(() => {});
+
       // Joystick: drag moves the thief; an interrupted gesture must not leave him walking.
       const jx = zone.x + zone.width * 0.4;
       const jy = zone.y + zone.height * 0.6;

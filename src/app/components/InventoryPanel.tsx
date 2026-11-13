@@ -41,7 +41,7 @@ export function InventoryPanel({ runtime }: { runtime: GameRuntime }) {
       <div className="panel pointer-events-auto w-full max-w-md p-4" role="dialog" aria-label="ঝোলা" onPointerDown={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gold">🎒 ঝোলা</h2>
-          <button ref={closeRef} type="button" className="btn btn-ghost !min-h-11 !px-3" onClick={() => setOpen(false)} aria-label="ঝোলা বন্ধ করুন">
+          <button ref={closeRef} type="button" className="btn btn-ghost !min-h-11 !min-w-11 !px-3" onClick={() => setOpen(false)} aria-label="ঝোলা বন্ধ করুন">
             ✕
           </button>
         </div>

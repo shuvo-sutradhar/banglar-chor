@@ -11,6 +11,7 @@
  * Fails silently when Web Audio is unavailable: gameplay never depends on audio.
  */
 import { ambienceFor, type AmbienceKind, type AmbienceScape } from './ambienceScapes';
+import { pickVariant } from './surfaces';
 
 export type { AmbienceKind } from './ambienceScapes';
 
@@ -61,7 +62,18 @@ export type SoundId =
   | 'pot-clatter'
   | 'door-creak'
   | 'cough'
-  | 'cat-yowl';
+  | 'cat-yowl'
+  // Phase 4C: surface footsteps, item-specific pickups, chase hubbub
+  | 'step-grass'
+  | 'step-dirt'
+  | 'step-mud'
+  | 'step-packed'
+  | 'step-wet'
+  | 'pickup-metal'
+  | 'pickup-wood'
+  | 'pickup-jingle'
+  | 'pickup-soft'
+  | 'crowd-chase';
 
 export type Bus = 'ambience' | 'sfx' | 'voice' | 'ui';
 
@@ -122,6 +134,7 @@ class AudioManagerImpl {
   private groups = new Map<string, Set<Voice>>();
   /** Counters for tests/debug (how many sounds were triggered per id). */
   readonly counts = new Map<SoundId, number>();
+  private variants = new Map<string, number>();
   private plays = 0;
 
   /** Call from a click/tap handler. Safe to call repeatedly. */
@@ -397,9 +410,70 @@ class AudioManagerImpl {
           T(330, 0.12, 'square', 0.18);
           T(494, 0.25, 'square', 0.18, 0.12);
           break;
-        case 'suspicious':
-          T(440, 0.18, 'sine', 0.14, 0, 560);
+        case 'suspicious': {
+          // Three variants, never the same twice in a row: a rising "hm?", a two-note query, a wobble.
+          const v = pickVariant(this.variants, 'suspicious', 3, Math.random());
+          if (v === 0) T(440, 0.18, 'sine', 0.14, 0, 560);
+          else if (v === 1) {
+            T(392, 0.1, 'sine', 0.12);
+            T(523, 0.16, 'sine', 0.12, 0.12);
+          } else for (let i = 0; i < 3; i++) T(470 + i * 25, 0.07, 'triangle', 0.1, i * 0.07);
           break;
+        }
+        // ---- footsteps by surface (random pitch/level per step so they never machine-gun)
+        case 'step-grass': {
+          const k = 0.8 + Math.random() * 0.4;
+          N(0.11, 0.06 * k, 2600 * k, 0, 0.8, 'highpass', 0.01);
+          N(0.06, 0.05 * k, 240 * k, 0.01, 1.2);
+          break;
+        }
+        case 'step-dirt': {
+          const k = 0.85 + Math.random() * 0.3;
+          N(0.07, 0.13 * k, 280 * k, 0, 1.4);
+          N(0.05, 0.05 * k, 1900 * k, 0.012, 2.5);
+          break;
+        }
+        case 'step-mud': {
+          const k = 0.85 + Math.random() * 0.3;
+          N(0.09, 0.15 * k, 190 * k, 0, 1, 'lowpass', 0.006);
+          break;
+        }
+        case 'step-packed': {
+          const k = 0.85 + Math.random() * 0.3;
+          N(0.06, 0.13 * k, 330 * k, 0, 1.6);
+          N(0.025, 0.05 * k, 2600 * k, 0.005, 3);
+          break;
+        }
+        case 'step-wet': {
+          const k = 0.85 + Math.random() * 0.3;
+          N(0.12, 0.1 * k, 700 * k, 0, 2, 'bandpass', 0.01);
+          T(320 * k, 0.07, 'sine', 0.04 * k, 0.02, 520 * k);
+          break;
+        }
+        // ---- pickups by item kind
+        case 'pickup-metal':
+          [1320, 1980, 2760].forEach((f, i) => T(f * (0.95 + Math.random() * 0.1), 0.35, 'triangle', 0.07, i * 0.012));
+          break;
+        case 'pickup-wood':
+          N(0.06, 0.18, 900, 0, 4);
+          T(260, 0.08, 'sine', 0.08, 0.01, 200);
+          break;
+        case 'pickup-jingle':
+          for (let i = 0; i < 5; i++) T(3200 + Math.random() * 1200, 0.09, 'triangle', 0.05, i * 0.035);
+          break;
+        case 'pickup-soft':
+          N(0.18, 0.1, 1500, 0, 0.7, 'bandpass', 0.03);
+          break;
+        case 'crowd-chase': {
+          // a burst of excited village walla behind the thief (not words: not a fake voice line)
+          const n = 3 + Math.floor(Math.random() * 3);
+          for (let i = 0; i < n; i++) {
+            const f0 = 170 + Math.random() * 120;
+            F(f0, f0 * (1.15 + Math.random() * 0.2), 0.18 + Math.random() * 0.12, 700 + Math.random() * 600, 0.16, i * (0.12 + Math.random() * 0.1), 'sawtooth', 2);
+          }
+          N(0.6, 0.06, 500, 0, 0.7, 'bandpass', 0.05);
+          break;
+        }
         case 'shout':
           F(260, 380, 0.35, 900, 0.25);
           break;

@@ -114,3 +114,18 @@ Subtitles and crowd lines share the same clock. It is skippable from 1.2 s; skip
 - **Captions.** Every important sound has a caption, so gameplay works with audio off.
 - **Audio is decoration.** Audio never gates gameplay; it fails silently without Web Audio.
 - **Cost.** Ambience schedulers tick at 5 Hz on timers, not per frame. One-shot nodes are created per event and garbage-collected after they stop (PERFORMANCE_BUDGETS §7).
+
+## 8. Phase 4C sound design
+- **Footsteps by surface** (`surfaces.ts`, unit-tested): road and paths are dirt crunch, fields are a grass swish, the house interior is a dull mud-floor thud, the pond edge squelches, and the bazaar is packed earth. Every step gets a random ±15 % pitch and level change, so steps never machine-gun.
+- **Bamboo in the wind:** a new night layer at the nearest real bamboo grove: hollow culm knocks (2–5) and an occasional slow creak, every 4–11 s.
+- **Item pickups by kind:**
+  - metal: a brass/bell-metal clink;
+  - household and electronics: a wooden knock;
+  - livestock: the hen;
+  - jewellery: a small jingle;
+  - junk: a cloth rustle.
+  A soft UI blip keeps the feedback consistent.
+- **NPC suspicion stings:** three variants, never the same twice in a row (`pickVariant`).
+- **Chase hubbub:** while chased, excited village walla (vowel-like formant bursts, not words, so not fake dialogue) comes from the chasing NPC every 1.6–2.8 s, spatialised.
+- **Not changed, still in place:** layered crickets, frogs, distant dogs, owls, morning birds, the market crowd, running breath and panting, dig strikes, the cartoon catch.
+- **Voice:** see VOICE_PRODUCTION.md. No recordings yet; the pipeline now supports takes and enforces credits.

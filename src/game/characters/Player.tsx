@@ -24,6 +24,7 @@ import { nightBody } from '../systems/nightBody';
 import { say } from '../systems/nightActions';
 import { THIEF_NAME } from '../data/dialogue';
 import { voiceLine } from '../audio/voiceLines';
+import { FOOTSTEP_SOUND, surfaceAt } from '../audio/surfaces';
 
 type KinematicController = ReturnType<ReturnType<typeof useRapier>['world']['createCharacterController']>;
 
@@ -241,7 +242,9 @@ export function Player({ spawn = PLAYER_SPAWN }: { spawn?: readonly [number, num
       // Equipment (cloth feet / slapping চটি) and the night (wedding drums) scale footstep noise.
       const radius = f.radius * (1 + FOOTSTEP_NOISE.loadRadiusBoost * player.loadRatio) * nb.loadout.mods.footstepNoise * nb.plan.footstepMult;
       runtime.noise.emit({ x: nx, y: ny, z: nz, radius, severity: f.severity, source: 'footstep', byPlayer: true }, runtime.simTime);
-      audio.play('footstep', { gain: effectiveMode === 'run' ? 0.8 : effectiveMode === 'crouch-walk' ? 0.25 : 0.5 });
+      // The ground decides the timbre (grass swish, road crunch, mud floor thud, pond-edge squelch).
+      const surface = surfaceAt(nx, nz, useAppStore.getState().zone);
+      audio.play(FOOTSTEP_SOUND[surface], { gain: effectiveMode === 'run' ? 0.9 : effectiveMode === 'crouch-walk' ? 0.3 : 0.6 });
     }
   });
 

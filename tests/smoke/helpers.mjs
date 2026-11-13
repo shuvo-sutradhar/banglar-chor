@@ -29,7 +29,8 @@ export async function launch() {
 export const snap = (page) => page.evaluate(() => window.__sidhel?.snapshot());
 
 export async function openGame(page, base, query = '') {
-  await page.goto(`${base}/?debug=1${query}`);
+  // EXTRA_QUERY (env) appends debug switches to every suite, e.g. EXTRA_QUERY=&nobatch=1 for A/B runs.
+  await page.goto(`${base}/?debug=1${query}${process.env.EXTRA_QUERY ?? ''}`);
   await page.getByTestId('start-button').waitFor();
   await page.waitForFunction(() => !document.querySelector('[data-testid=start-button]')?.hasAttribute('disabled'), null, { timeout: 60000 });
   // The button enables before the first frames have rendered (shader compilation and model
@@ -331,17 +332,21 @@ export async function chooseItem(page, lootId) {
 
 /** Play the persuasion beat: 'perfect' presses on the sweet spot, 'miss' at the needle's extreme. */
 export async function persuade(page, cdp, quality) {
-  await page.getByTestId('persuasion-meter').waitFor({ timeout: 4000 });
+  await page.getByTestId('persuasion-meter').waitFor({ timeout: 45000 });
+  // Controllable minigame time (D-061): the needle runs at 1/4 speed for this slow driver.
+  await page.evaluate(() => window.__sidhel.setMinigameTimeScale(0.25));
   await wait(150);
   await spaceAt(page, cdp, (q) => {
+    const k = window.__sidhel.minigameTimeScale();
     const s = window.__sidhel.snapshot().persuade;
     const half = 500 / s.speed; // sweet spots repeat every half cycle
     let ms = s.msUntilSweet;
     if (ms < 200) ms += half;
     if (q === 'miss') ms += half / 2; // the needle's extreme, far outside every zone
-    return { ms, epoch: performance.timeOrigin + performance.now() + ms };
+    return { ms: ms / k, epoch: performance.timeOrigin + performance.now() + ms / k };
   }, quality);
-  await page.getByTestId('persuasion-meter').waitFor({ state: 'detached', timeout: 4000 }).catch(() => {});
+  await page.getByTestId('persuasion-meter').waitFor({ state: 'detached', timeout: 45000 }).catch(() => {});
+  await page.evaluate(() => window.__sidhel.setMinigameTimeScale(1));
   await wait(700);
 }
 

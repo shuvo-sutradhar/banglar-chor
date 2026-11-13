@@ -163,6 +163,15 @@ function HoldButton({ label, onChange, className, testId }: { label: string; onC
   );
 }
 
+/** A short haptic tick where supported (Android Chrome); silently ignored elsewhere (iOS). */
+function haptic(): void {
+  try {
+    navigator.vibrate?.(8);
+  } catch {
+    /* unsupported */
+  }
+}
+
 function TapButton({ label, onTap, active, disabled, className, testId }: { label: string; onTap: () => void; active?: boolean; disabled?: boolean; className: string; testId: string }) {
   const last = useRef(-1e9);
   return (
@@ -179,6 +188,7 @@ function TapButton({ label, onTap, active, disabled, className, testId }: { labe
         // One action per tap: a second finger / bounced touch within the guard is ignored.
         if (e.timeStamp - last.current < TAP_GUARD_MS) return;
         last.current = e.timeStamp;
+        haptic();
         onTap();
       }}
       onContextMenu={(e) => e.preventDefault()}

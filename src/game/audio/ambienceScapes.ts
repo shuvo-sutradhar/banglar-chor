@@ -8,6 +8,7 @@
  */
 import type { AudioEngine } from './AudioManager';
 import { HOUSES, POND } from '../world/layout';
+import { buildVegetationLayout } from '../world/vegetationLayout';
 
 export type AmbienceKind = 'night' | 'morning' | 'market' | 'safehouse';
 
@@ -32,6 +33,26 @@ const FROG_SPOTS: readonly XZ[] = [POND, { x: POND.x + 5, z: POND.z - 3 }, { x: 
 const DOG_SPOTS: readonly XZ[] = [{ x: 40, z: -34 }, { x: -44, z: 12 }, { x: 18, z: 48 }, { x: -30, z: -44 }];
 const OWL_SPOTS: readonly XZ[] = [{ x: -24, z: -4 }, { x: 22, z: 6 }, { x: 4, z: -30 }];
 const HOUSE_SPOTS: readonly XZ[] = [HOUSES.kuddus, HOUSES.morol, { x: HOUSES.rahim.x - 1, z: HOUSES.rahim.z }];
+/** Real bamboo grove positions (same deterministic layout the scenery uses). */
+let BAMBOO_SPOTS: readonly XZ[] | null = null;
+function bambooSpots(): readonly XZ[] {
+  if (!BAMBOO_SPOTS) BAMBOO_SPOTS = buildVegetationLayout().groves.map((g) => ({ x: g.x, z: g.z }));
+  return BAMBOO_SPOTS;
+}
+/** The grove nearest the listener (bamboo talks in the wind only where you can hear it). */
+function nearestBamboo(e: AudioEngine): XZ {
+  const l = e.listenerPos;
+  let best = bambooSpots()[0] ?? { x: 0, z: 0 };
+  let d = Infinity;
+  for (const g of bambooSpots()) {
+    const k = Math.hypot(g.x - l.x, g.z - l.z);
+    if (k < d) {
+      d = k;
+      best = g;
+    }
+  }
+  return best;
+}
 
 /** A looping noise bed through a filter, with slow random "gusts" on gain and cutoff. */
 function bed(e: AudioEngine, out: AudioNode, opts: { type: BiquadFilterType; freq: number; q: number; gain: number; pan?: number; gust?: [number, number]; freqSwing?: number }) {
@@ -196,6 +217,19 @@ export const NIGHT_LAYERS: readonly EventLayer[] = [
     fire: (e) => {
       const r = at(e, near(e), 20, 0.05);
       if (r) for (let i = 0; i < 4; i++) e.noise(r.input, rnd(0.08, 0.2), r.gain, rnd(3500, 6000), i * rnd(0.05, 0.12), 1.2, 'bandpass', undefined, 0.02);
+    },
+  },
+  {
+    id: 'bamboo',
+    min: 4,
+    max: 11,
+    fire: (e) => {
+      // Wind through bamboo: hollow culms knocking together, sometimes a slow creak.
+      const r = at(e, nearestBamboo(e), 26, 0.16);
+      if (!r) return;
+      const n = 2 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) e.noise(r.input, 0.05, r.gain, rnd(520, 900), i * rnd(0.12, 0.3), 9, 'bandpass', undefined, 0.002);
+      if (Math.random() < 0.35) e.formant(r.input, rnd(90, 130), rnd(150, 210), rnd(0.6, 1.1), rnd(900, 1300), r.gain * 0.5, rnd(0.2, 0.6), 'sawtooth', 7);
     },
   },
   {

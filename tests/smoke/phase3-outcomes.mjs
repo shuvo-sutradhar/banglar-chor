@@ -14,11 +14,11 @@ const shot = (page, name) => page.screenshot({ path: join(SHOTS, `${name}.png`) 
 async function enterHouse(page, cdp) {
   await approachSidh(page);
   await page.keyboard.press('KeyE');
-  await page.getByTestId('entry-overlay').waitFor({ timeout: 8000 });
+  await page.getByTestId('entry-overlay').waitFor({ timeout: 45000 });
   if (await page.getByTestId('entry-hint').isVisible().catch(() => false)) await page.getByTestId('entry-start').click();
   await playEntrySkilled(page, cdp);
   return page
-    .waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 15000 })
+    .waitForFunction(() => window.__sidhel.snapshot().app.phase === 'interior', null, { timeout: 45000 })
     .then(() => true)
     .catch(() => false);
 }
@@ -37,9 +37,9 @@ try {
   const first = await snap(page);
   check('no-loot: entered the house', await enterHouse(page, cdp));
   await page.getByTestId('leave-house').click();
-  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 8000 });
+  await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'night', null, { timeout: 45000 });
   await walkPath(page, ROUTE_TO_EXIT, { run: true, timeout: 25000, stopWhen: async () => (await snap(page)).app.phase !== 'night' });
-  await page.getByTestId('night-resolution').waitFor({ timeout: 8000 });
+  await page.getByTestId('night-resolution').waitFor({ timeout: 45000 });
   let s = await snap(page);
   check('no-loot: night ends as an empty-handed escape', s.run.outcome === 'escaped-empty');
   check('no-loot: no market is offered (no empty trading loop)', !(await page.getByTestId('to-dawn').isVisible().catch(() => false)) && (await page.getByTestId('to-results').isVisible()));
@@ -73,8 +73,8 @@ try {
   await page.waitForFunction(() => ['caught', 'night-resolution', 'results'].includes(window.__sidhel.snapshot().app.phase), null, { timeout: 10000 }).catch(() => {});
   s = await snap(page);
   check('timeout: still inside at 4:30 → caught at dawn (GAME_DESIGN §2)', s.run.outcome === 'dawn-caught', `${s.app.phase} ${s.run.outcome}`);
-  await page.getByTestId('caught-skip').click({ timeout: 6000 }).catch(() => {});
-  await page.getByTestId('night-resolution').waitFor({ timeout: 10000 });
+  await page.getByTestId('caught-skip').click({ timeout: 45000 }).catch(() => {});
+  await page.getByTestId('night-resolution').waitFor({ timeout: 45000 });
   check('timeout: no market after a dawn catch', !(await page.getByTestId('to-dawn').isVisible().catch(() => false)));
   await page.getByTestId('to-results').click();
   await page.getByTestId('results').waitFor();
@@ -100,7 +100,7 @@ try {
   await p2.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'caught', null, { timeout: 60000 }).catch(() => {});
   s = await snap(p2);
   check('night catch: standing in the patrol\'s path gets you caught', s.app.phase === 'caught' && s.run.outcome === 'caught', `${s.app.phase} ${s.run?.outcome}`);
-  await p2.getByTestId('night-resolution').waitFor({ timeout: 15000 });
+  await p2.getByTestId('night-resolution').waitFor({ timeout: 45000 });
   check('night catch: no market offered after being caught', !(await p2.getByTestId('to-dawn').isVisible().catch(() => false)));
   await p2.getByTestId('to-results').click();
   await p2.getByTestId('results').waitFor();
