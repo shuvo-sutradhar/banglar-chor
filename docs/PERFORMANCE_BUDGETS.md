@@ -74,3 +74,26 @@ Real FPS on a desktop GPU and a mid-range Android phone, thermal behaviour, GPU 
 - **HUD:** stamina publishes in 5 % steps (`setStamina` quantises); energy refreshes every 2 s; the snack button reads a plain object. No per-frame React state.
 - **Dig dirt:** one `InstancedMesh` of 10 clods (1 draw call, only while visible). **Dog:** 11 small boxes with 2 materials, only on nights ≥ 2. **Safehouse:** about 12 shared-geometry meshes.
 - **Living-village plan:** computed once per night (pure function); household events are a minute-of-night check in one before-step callback.
+
+### Measured (`node tests/visual/perf-phase4b.mjs`, headless SwiftShader, 1280×720, High)
+| Scenario | FPS* | Draw calls | Tris | Sim CPU / physics step | Mixer ms/frame | HUD commits/s (Hud · StaminaBar) | SFX events/s | JS heap |
+|---|---|---|---|---|---|---|---|---|
+| Night 1, idle | 2.58 | 275 | 192k | 0.11 ms | 0.05 | 0 · 0 | 0 | 27.7 MB |
+| Night 1, sprinting until exhausted | 2.34 | 155–275† | 186k | 1.3 ms | 0.07 | 0.31 · 2.78 | 6.6 (footsteps, breath, pant) | 28.5 MB |
+| Night 2 (dog + events), audio on | 2.12 | **286** | 192k | 0.19 ms | 0.12 | 0 · 0 | 0 | 39.2 MB |
+| Night 2, audio muted | 2.09 | 286 | 192k | 1.1 ms‡ | 0.14 | 0 · 0 | 0 | 37.4 MB |
+| Safehouse | 3.09 | 252 | 188k | — (physics paused) | 0.21 | — | 0 | 31.9 MB |
+
+\* SwiftShader CPU rendering on a machine at 93 % CPU from other applications. These numbers compare scenarios only; they are not device frame rates.
+
+† The draw-call count depends on the camera view while running.
+
+‡ Sim CPU per step is noisy at this load (0.1–1.3 ms between runs of the same idle scene). A single physics frame packs 22–29 catch-up steps at ~2 FPS, so read these as orders of magnitude.
+
+**Readings:**
+- **No per-frame React work.** While sprinting and draining stamina the HUD commits ~0.3 times/s and the stamina bar ~2.8 times/s (5 % steps).
+- **Animation stays cheap.** The mixer costs 0.05–0.2 ms/frame with the 21-clip GLB.
+- **The dog costs 11 draw calls** (night 2: 286 vs 275). It is the one new rendering cost. Next step: merge its static parts into 2 meshes (one per material) to bring it to ~3 calls.
+- **Muting saves memory.** It saves ~1.8 MB of JS heap (no node churn) in this sample.
+- **Ambience is not counted.** "SFX events/s" counts one-shot `audio.play` calls; ambience-bed scheduling runs on a 5 Hz timer and isn't included.
+- **Not measured here:** input latency on device, real GPU time, audio CPU in the browser's audio thread, thermal behaviour. They need real hardware (MOBILE_UX_QA §4).

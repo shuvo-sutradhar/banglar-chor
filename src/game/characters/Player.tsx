@@ -217,7 +217,7 @@ export function Player({ spawn = PLAYER_SPAWN }: { spawn?: readonly [number, num
     if (player.action === 'pickup' && player.actionTime > 0.6) setAction(player, null);
 
     // Stamina, breathing and the fatigue reaction.
-    if (stamina.step(dt, effectiveMode === 'run', player.loadRatio)) {
+    if (stamina.step(dt, effectiveMode === 'run', player.loadRatio, false, useAppStore.getState().phase === 'chase')) {
       audio.play('pant');
       if (!nb.tiredShown) {
         nb.tiredShown = true;

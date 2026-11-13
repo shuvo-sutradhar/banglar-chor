@@ -43,8 +43,11 @@ export const CAMERA_PRESETS: Record<CameraPresetId, CameraPreset> = {
   exploration: { distance: 5.0, targetHeight: 1.4, defaultPitch: 0.3, fov: 54 },
   /** Cutaway view: the camera sits outside the small room, walls/roof cut around the sight line. */
   interior: { distance: 3.7, targetHeight: 1.05, defaultPitch: 0.78, fov: 56 },
-  /** Over-the-shoulder 3/4 view of the wall during the entry challenge. */
-  minigame: { distance: 2.9, targetHeight: 1.0, defaultPitch: 0.3, fov: 55 },
+  /**
+   * Side 3/4 view of the thief at the wall during the entry challenge (Phase 4B): his profile,
+   * the tool swing and the growing hole all in frame, above the compact control strip.
+   */
+  minigame: { distance: 3.4, targetHeight: 0.55, defaultPitch: 0.42, fov: 55 },
   /** Pulled back so pursuers stay in view. */
   chase: { distance: 6.0, targetHeight: 1.5, defaultPitch: 0.36, fov: 60 },
   /** Slow orbit around the comic catch. */
@@ -53,8 +56,11 @@ export const CAMERA_PRESETS: Record<CameraPresetId, CameraPreset> = {
   conversation: { distance: 2.5, targetHeight: 1.55, defaultPitch: 0.16, fov: 50 },
 };
 
-/** Camera yaw for the entry challenge: behind-left of a thief facing Rahim's back wall (+X). */
-export const MINIGAME_CAMERA_YAW = -Math.PI / 2 + 0.6;
+/**
+ * Camera yaw for the entry challenge: beside the thief (south of him, looking north and slightly
+ * toward Rahim's back wall), so the swing is seen in profile instead of from behind.
+ */
+export const MINIGAME_CAMERA_YAW = -0.58;
 
 export const CAMERA_TUNING = {
   minPitch: -0.12,

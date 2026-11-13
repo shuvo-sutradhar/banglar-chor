@@ -50,7 +50,7 @@ function CaptionToast() {
   }, [caption, clearCaption]);
   if (!caption || !subtitles) return null;
   return (
-    <div key={caption.id} role="status" aria-live="polite" className="caption-in panel mx-auto max-w-xl px-4 py-2 text-center text-lg leading-snug" data-testid="caption">
+    <div key={caption.id} role="status" aria-live="polite" className="caption-in panel mx-auto max-w-xl px-4 py-2 text-center text-lg leading-snug [@media(max-height:500px)]:max-w-md [@media(max-height:500px)]:px-3 [@media(max-height:500px)]:py-1 [@media(max-height:500px)]:text-sm" data-testid="caption">
       {caption.speaker && <span className="mr-2 font-semibold text-lantern">{caption.speaker}:</span>}
       {caption.text}
     </div>

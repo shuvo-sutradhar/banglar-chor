@@ -255,6 +255,18 @@ export const ROUTE_TO_EXIT = [
 
 /** Play the entry challenge with skilled timing (Space on each beat). */
 export async function playEntrySkilled(page, cdp) {
+  // Controllable minigame time (D-061): the rhythm runs at 1/4 speed for the driver, whose round
+  // trips take seconds at headless frame rates; all judging rules are unchanged.
+  const prev = await page.evaluate(() => window.__sidhel.minigameTimeScale?.() ?? 1);
+  await page.evaluate(() => window.__sidhel.setMinigameTimeScale?.(0.25));
+  try {
+    await playEntrySkilledInner(page, cdp);
+  } finally {
+    await page.evaluate((v) => window.__sidhel?.setMinigameTimeScale?.(v), prev).catch(() => {});
+  }
+}
+
+async function playEntrySkilledInner(page, cdp) {
   for (let i = 0; i < 14; i++) {
     const s = (await snap(page)).entry;
     if (!s || s.status !== 'running') break;
@@ -277,7 +289,8 @@ export async function playEntryBadly(page, cdp) {
     if (!s || s.status !== 'running') break;
     await spaceAt(page, cdp, () => {
       const e = window.__sidhel.snapshot().entry;
-      const ms = e.msUntilNextBeat + 525; // exactly between beats
+      const k = window.__sidhel.minigameTimeScale?.() ?? 1;
+      const ms = (e.msUntilNextBeat + 525) / k; // exactly between beats
       return { ms, epoch: performance.timeOrigin + performance.now() + ms };
     });
     await wait(200);

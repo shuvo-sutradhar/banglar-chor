@@ -165,3 +165,45 @@
   - Market situations; a "tonight" brief before every night.
 - [x] **Stage 6: mobile UX.** Dead-zone setting, floating joystick base, release on blur/hidden, a 220 ms tap guard, left-handed layout, sprint exhaustion state, bottom-sheet safehouse, ≥ 44 px targets (MOBILE_UX_QA.md).
 - [x] **Stage 7: performance/QA instrumentation.** Simulation-step CPU, HUD React commits per second, audio events per second; `tests/visual/perf-phase4b.mjs`.
+
+## Latest verified milestone — Phase 4B (2026-11-13)
+**Static.** `npm run check` ✔ (tsc, eslint, **170/170** unit tests incl. 50 new Phase 4B tests); `npm run build` ✔; `npm run assets:thief` ✔ (GLB valid, lungi QA and foot-sliding QA pass).
+
+**Browser suites** (final build, headless Edge, machine at ~93 % CPU from other apps, ~1.5–2.5 FPS):
+
+| Suite | Result |
+|---|---|
+| `smoke:phase4b` (full multi-night lifecycle, real input) | **34/34** |
+| `smoke:phase4b-touch` (3 phone viewports, real touch) | **51/51** |
+| `smoke:premium` | **16/16** |
+| `smoke` (Phase 1) | **35/35** |
+| `smoke:phase2` | **56/56** (first final run 40/44 found the adrenaline and info-line issues, fixed: D-063) |
+| `smoke:phase3`, `phase3-outcomes`, `phase3-touch` | **not re-run this session** (time); they share the fixed helpers |
+
+**Genuine bugs found by testing and fixed:**
+1. Over-held tuck vs a late key-up (D-052).
+2. A low-priority line overwrote an instruction caption (D-052).
+3. `PausableClock.at()` misjudged on-time taps below 2 FPS (D-061).
+4. The tool-challenge panel did not fit landscape phones.
+5. The panel hid the digging; owner feedback (D-062).
+6. Stamina made chases unescapable (D-063).
+7. The dog cost 11 draw calls; now 6.
+
+**Harness fixes, no assertions relaxed:**
+- precise mode (`setMaxFrameStep`) and game-time walk budgets;
+- minigame time scale;
+- waits for the first frames and the prep hook;
+- rest-first ordering in the tool checks;
+- navigation and phase logging on failure.
+
+**Screenshots:** `docs/screenshots/phase4b/`: entry framing (desktop and phone), clip renders, safehouse, eating, results with the bank summary, out of breath, mobile layouts.
+
+**Not done / honest limits:**
+- No voice recordings (subtitles only; the recording script is ready).
+- Synthesised ambience is stylised.
+- Character polish still needs an artist.
+- NPCs are still procedural (draw calls: village ~280, bazaar ~335).
+- No real-device FPS, latency, thermal or audio-on-phone tests.
+- Phase 3 suites not re-run this session.
+
+**Next exact task:** play nights 1–3 and review the screenshots and feel. Then decide on voice recording (human actors, or a licensed voice service with the owner's approval), and on NPCs on the shared rig.

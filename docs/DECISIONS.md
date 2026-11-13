@@ -214,3 +214,24 @@ The safehouse is a compact yard at the village edge (cot, stove, sack) with the 
 ## D-061 · Minigame clock: slow-device timestamp window, and test-controllable time
 - **Bug (real players on slow devices).** `PausableClock.at()` trusted an input's timestamp only within ±0.5 s of the last frame. Below 2 FPS (measured ~1.5 FPS in loaded headless runs), an on-time tap made more than 0.5 s after the last frame was judged at handler time, i.e. late. The window is now the 1 s hitch cap already used by `tick()`, and future timestamps are still never trusted (unit-tested).
 - **Test-only time scale.** `__sidhel.setMinigameTimeScale(k)` (debug builds only, resets with the bridge) runs the preparation, entry and persuasion clocks at k× real time. A driver whose every round trip takes seconds can then play the real-time rhythm. The judging logic, windows and noise rules are untouched; the helpers convert hook times (game ms) to wall ms by 1/k. It complements `setMaxFrameStep` (D-052), which does the same for physics.
+
+## D-062 · The dig is the feedback: compact control strip, side camera
+**Owner playtest feedback.** The centred rhythm panel hid the thief while digging, so the most interactive moment (the swing, the dirt, the growing hole) was invisible.
+
+**Changes:**
+- **Control strip.** The challenge UI is now a translucent strip at the bottom: a small ring, one-line meters, rest and retreat buttons. Tapping anywhere on it still strikes. Judgements float just above it.
+- **Hint card.** The first-attempt hint is a centred card shown once, before the rhythm starts.
+- **Camera.** The minigame camera moved beside the thief (yaw −0.58, 3.4 m, pitch 0.42, looking at 0.55 m height), so the swing is seen in profile with the wall, dirt clods and hole mark in frame.
+- **Short screens (≤ 500 px tall).** The strip shrinks further (14-unit ring, buttons side by side), and HUD captions shrink so they don't cover the thief.
+
+**Verified by screenshots:** desktop 1280×720 and phone landscape 844×390 (`tests/visual/shoot-entry.mjs`, `docs/screenshots/phase4b/entry-*.png`).
+
+**Same task, separately:** the dog was merged from 11 draw calls to 6 (static parts merged per material within each animated part).
+
+## D-063 · Adrenaline keeps every chase escapable; info lines are never cut off
+**Chases.** The Phase 2 browser suite exposed a fairness break. Stamina (Phase 4B) let a thief who had sprinted earlier be spotted while exhausted, walk at 3 m/s and get caught by a 5 m/s patrol. That violated GAME_DESIGN §4: an unloaded escape is always possible.
+- **Rule:** when a chase starts, stamina jumps to at least 60 % and the exhaustion lock clears, once per chase. While chased, sprinting drains at half rate.
+- **Guarantee:** even at zero energy this gives more than 4 s of sprint (unit-tested), plus the existing break-sight and leash rules.
+- **What stamina still decides:** how long you can sprint *before* a chase, how often you dig, and whether a long chase ends badly.
+
+**Dialogue.** A gameplay-critical info line (e.g. the entry cooldown "একটু পরে") is no longer cut off by a higher-priority line. The urgent line queues at the front and plays right after; alarm SFX are immediate anyway.

@@ -13,6 +13,7 @@ import { Interactable } from '../world/Interactable';
 import { audio } from '../audio/AudioManager';
 import { crawlIntoRahimHouse, crawlOutOfRahimHouse, entryCooldown, say, triggerCaught } from './nightActions';
 import { stepItemEffects, resetItemEffects } from './itemEffects';
+import { nightBody } from './nightBody';
 import { MeshBasicMaterial, RingGeometry, DoubleSide } from 'three';
 
 /**
@@ -81,6 +82,8 @@ export function NightDirector() {
     let chasing = false;
     for (const npc of runtime.npcs.values()) if (npc.state === 'chasing' || npc.state === 'alerted') chasing = true;
     if (chasing && (app.phase === 'night' || app.phase === 'entry')) {
+      // Fear gives him legs: a chase never starts with an exhausted thief (D-063).
+      nightBody.current.stamina.adrenaline();
       useRunStore.getState().recordChase(runtime.simTime);
       app.goTo('chase');
     } else if (!chasing && app.phase === 'chase') {

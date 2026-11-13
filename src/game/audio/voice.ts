@@ -92,6 +92,13 @@ export class VoiceDirector {
     if (this.active && this.active.line.id === line.id) return 'cooldown';
     if (this.active) {
       if (line.priority > this.active.line.priority) {
+        // Gameplay-critical info (e.g. "retry later") is never cut off: the urgent line goes to
+        // the front of the queue and plays right after it.
+        if (this.active.line.info) {
+          this.queue.unshift({ line, at, expires: t + VOICE_RULES.queueTtl + 3 });
+          this.queue = this.queue.slice(0, VOICE_RULES.queueMax + 1);
+          return 'queued';
+        }
         this.interrupt();
         this.begin(line, at, t);
         return 'played';
