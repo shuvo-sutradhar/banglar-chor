@@ -17,23 +17,29 @@
 Rules: one geometry/material per character type loaded once (drei `useGLTF` cache) and cloned; repeated static props instanced or merged; texture compression (KTX2) only with a bundled transcoder and device tests; every new GLB is checked against this table before merge.
 
 ## 2. Measured: thief before → after (Phase 4A)
-Village, after preparation, same seed and viewpoint (`npm run perf:thief`), no NPCs:
+Village, after preparation, same seed and viewpoint (`npm run perf:thief`), final `thief.glb` (1,360 KB), no NPCs:
 
 | Variant | Draw calls | Scene tris | Thief tris | Thief textures | Thief GPU tex | Mixer CPU ms/frame | Rig CPU ms/frame | JS heap | FPS* |
 |---|---|---|---|---|---|---|---|---|---|
-| Procedural rig (Phase 1–3) | 309 | 170k | ~4k (40 meshes) | 0 | 0 | — | 0.031 (2 rigs) | 22.5 MB | 2.04 |
-| Placeholder GLB (premium pass) | 275 | 179k | 5,954 | 0 (vertex colours) | 0 | 0.029 | 0.029 | 22.5 MB | 2.28 |
-| **Blender thief, High** | **275** | **192k** | **12,428** | 3 (≤1024²) | **12 MB** | **0.069** | 0.038 | 30.1 MB | 2.14 |
-| **Blender thief, Low** | 230 | 105k | 12,428 | 3 (≤512²) | **4 MB** | 0.058 | 0.033 | 26.6 MB | 3.99 |
+| Procedural rig (Phases 1–3) | 309 | 170k | (~40 meshes) | 0 | 0 | — | 0.069 (thief + Rahim) | 21.1 MB | 2.50 |
+| Placeholder GLB (premium pass) | 275 | 179k | 5,954 | 0 (vertex colours) | 0 | 0.069 | 0.019 | 23.1 MB | 2.56 |
+| **Blender thief, High** | **275** | **192k** | **12,428** | 3 (≤ 1024²) | **12 MB** | **0.064** | 0.029 | 27.1 MB | 2.29 |
+| **Blender thief, Low** | 230 | 105k | 12,428 | 3 (≤ 512²) | **4 MB** | 0.048 | 0.015 | 28.2 MB | 4.35 |
 
-\* SwiftShader; the High-tier differences (2.04–2.28) are within run-to-run noise. Load (probe → first mount, overlaps game start-up): 0.9–2.5 s headless for both GLBs; indicative only.
+\* SwiftShader CPU rendering: High-tier FPS differences (2.29–2.56) are inside run-to-run noise (the same variant measured 2.04–2.83 across runs). Load (probe → first mount, overlapping game start-up): 0.9–2.4 s for both GLBs; indicative only. JS heap: +4 MB for the Blender thief (texture images and clips).
 
-With NPCs on (`-- --npcs`, Majnu patrol + Rahim): calls 313 for both GLB variants (+38 from the two procedural NPC rigs); rig CPU 0.03–0.04 ms/frame for ~2 rigs.
+With NPCs on (`-- --npcs`, the Majnu patrol + Rahim): Blender High 313 calls / 195k tris, placeholder 315 / 182k, procedural 347 / 173k; mixer 0.03–0.09 ms/frame; rig 0.023–0.075 ms/frame for 2–3 rigs.
 
-**Reading:** the Blender thief costs the same draw calls as the placeholder, +6.5k triangles (+7 % of the village), ~12 MB of GPU texture memory at High (4 MB on Low) and ~0.04 ms/frame more animation CPU. Rendering, not animation, dominates.
+**Reading:** the Blender thief costs the same draw calls as the placeholder, +6.5k triangles (+7 % of the village), ~12 MB of GPU texture memory at High (4 MB on Low) and a mixer cost in the same 0.03–0.09 ms/frame range as the placeholder. Rendering, not animation, dominates.
 
-## 3. Measured: village and bazaar scenes
-BAZAAR_TABLE
+## 3. Measured: village and bazaar scenes (thief variant only changes)
+| Scene (High, headless) | Placeholder thief | Blender thief | Change |
+|---|---|---|---|
+| Village, spawn road (perf script / tour) | 275 calls · 179k tris | 275 calls · 192k tris | +0 calls · +13k tris |
+| Village with NPCs | 315 calls · 182k tris | 313 calls · 195k tris | ≈ 0 calls · +13k tris |
+| Bazaar arrival (touch suite, after the dawn skip) | 335 calls · 38.3k tris · 43 textures | 337 calls · 44.8k tris · 47 textures | +2 calls (crowd randomness) · +6.5k tris · +4 textures |
+
+The bazaar remains over the 150-call target (~335) because of the procedural NPC crowd, not the thief. Note: the Phase 3 full-loop suite, which also logs bazaar calls, could not complete on this machine in this session for **any** variant, including the unmodified HEAD build (see IMPLEMENTATION_PROGRESS.md).
 
 ## 4. NPCs: rendering vs animation, measured separately
 - **Animation (CPU):** a procedural `HumanRig` update costs ~0.015–0.03 ms/frame per rig; the thief's `AnimationMixer` (18 clips, one active plus a cross-fade) ~0.06 ms/frame. Animating NPCs is cheap either way.

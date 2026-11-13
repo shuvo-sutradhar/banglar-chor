@@ -51,7 +51,7 @@
 - [x] Blender located and verified: 5.3.0 at `C:\Program Files\Blender Foundation\Blender 5.3\blender.exe` (headless, Python, EEVEE, Cycles bake, glTF). Earlier scripts re-run: `import_placeholder.py` ✔, `export_character.py` ✔ (placeholder round-trip valid).
 - [x] Original thief modelled, rigged, weighted, animated and textured in Blender (`assets-source/blender/characters/thief.blend`, scripts in `assets-source/blender/scripts/thief/`). 12,428 tris, 32 joints, 2 materials, 3 textures, shape keys `LungiTuck` + `Blink`.
 - [x] 18 clips (all spec clips incl. the 15 requested + Suspicious, ChaseReaction, Crawl), IK-authored, baked to FK. Planted-foot error ≤ 0.004 m/s; lungi clipping 0 verts in all clips when tucked (D-047).
-- [x] GLB exported and optimised: `public/assets/models/characters/thief.glb`, 1,215 KB, validated against the spec. Placeholder kept as fallback (`thief.glb` → placeholder → procedural).
+- [x] GLB exported and optimised: `public/assets/models/characters/thief.glb`, 1,360 KB, validated against the spec. Placeholder kept as fallback (`thief.glb` → placeholder → procedural).
 - [x] Runtime: blink driver, Low-tier texture cap (512²), perf counters; no movement/physics/camera changes.
 - [x] Budgets and before/after measurements: `docs/PERFORMANCE_BUDGETS.md`.
 - [ ] Artist polish (sculpt/normal maps, face loops, UV layout, animation polish) — see BLENDER_CHARACTER_SPEC.md "Remaining artistic limitations".
@@ -108,3 +108,25 @@
   - The cutout dither leaves a faint trace of dissolved culms.
   - **Not measured on real hardware.**
 - **Next exact task (after your review):** decide on Blender (permission to install it, or an artist), then Phase 4 polish.
+
+## Latest verified milestone — Phase 4A (2026-11-13)
+- **Blender:** 5.3.0, `C:\Program Files\Blender Foundation\Blender 5.3\blender.exe`; scripts run: `import_placeholder.py`, `export_character.py`, `thief/build_thief.py`, `render_previews.py`, `qa_character.py`.
+- **Asset:** `thief.glb` 1,360 KB · 12,428 tris · 32 joints · 18 clips · 2 materials · 3 textures · `LungiTuck` + `Blink` (verified non-empty in the file and visually in game).
+- **Character QA (Blender):** lungi clipping 0 verts in all 18 clips when tucked (1.0 and 0.8); planted-foot error ≤ 0.004 m/s (Walk, Run, CrouchWalk, Sneak, Carry).
+- **Static:** `npm run check` ✔ (tsc, eslint, **116/116** unit tests); `npm run build` ✔; `npm run validate:glb` ✔.
+- **Browser suites (headless Edge, final build):**
+
+| Suite | Result this session |
+|---|---|
+| `smoke:premium` | **16/16** (final GLB); one earlier run 15/16 (marker walk timing), passed on re-run |
+| `smoke` (Phase 1) | **35/35**; one run 30/35 (route timing: walked past the house), passed on re-run |
+| `smoke:phase2` | 55/55 earlier this session; on the final build 55/56, then 53/56 — different timing checks each run (Rahim countdown; chase escape) |
+| `smoke:phase3-touch` | **11/11** once; later runs failed at different bazaar/dawn tap steps |
+| `smoke:phase3-outcomes` | **19/19** (after the harness fix below) |
+| `smoke:phase3` (full NPC loop) | **did not complete** for the Blender thief, the placeholder, *or the unmodified HEAD build* (`c685a0d`, original harness): the patrol catches the thief / timeouts |
+
+- **Why the browser suites are flaky this session (evidence, not assumption):** headless frame rate measured ~2–2.5 FPS for *every* variant (the previous session reported ~4 FPS) while AnyDesk, VS Code and Chrome were busy on the machine; the scripted routes use wall-clock timeouts. The unmodified HEAD build fails the Phase 3 full loop the same way. No failure was specific to the new model; the thief variants fail identically.
+- **Harness fixes (no checks weakened):** `approachSidh()` helper (waypoint retry + tight final step + wait for focus) used by phase3-full/outcomes/touch and the tour; `--placeholder` switches for before/after runs; flags no longer taken as screenshot dirs.
+- **Bug found and fixed:** the optimiser zeroed morph targets (D-050); the lungi did not tuck in game. Now guarded by the optimiser and a unit test.
+- **Performance:** see `docs/PERFORMANCE_BUDGETS.md` (same draw calls as the placeholder, +6.5k tris, 12 MB GPU textures at High / 4 MB at Low, mixer ~0.06 ms/frame). Not measured on real hardware.
+- **Next exact task:** review the previews in `docs/screenshots/phase4a/`; then either an artist polish pass on the thief, or Phase 4B: NPCs on the shared rig (budgets in PERFORMANCE_BUDGETS.md).

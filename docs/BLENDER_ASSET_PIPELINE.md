@@ -23,25 +23,25 @@ npm run assets:thief -- --export-only   # re-export after hand-editing thief.ble
 | 4. Paint | `th_bake.py`, `th_paint.py` | Vertex paint (blush, stubble, palms/soles, lash line) and procedural node materials (tartan lungi, gamcha checks, iris/pupil/catch-light, hair sheen); Smart UV atlases (face ×2, eyes ×3 texel density); Cycles bake of diffuse colour × AO and roughness → `Thief_Skin` and `Thief_Cloth` |
 | 5. Save | `build_thief.py` | `assets-source/blender/characters/thief.blend` (textures packed) + PNGs in `characters/textures/` |
 | 6. Export | `../export_character.py` | `public/assets/models/characters/thief.glb` |
-| 7. Optimise | `scripts/assets/optimize-glb.mjs` | glTF Transform: dedup, weld, resample, quantise, **sparse morph targets**, prune |
+| 7. Optimise | `scripts/assets/optimize-glb.mjs` | glTF Transform: dedup, weld, resample, quantise, prune; then a round-trip guard that fails on empty morph targets (D-050) |
 | 8. Validate | `scripts/assets/validate-glb.mjs`, `src/test/premium.test.ts` | Spec contract: bones, clips, metadata, budget, shape keys, materials |
 | 9. QA | `../qa_character.py` | Lungi clipping per clip/tuck state; foot sliding per locomotion clip |
 | Review | `../render_previews.py` | EEVEE previews of any view/clip/frame/tuck |
 
 ### GLB export settings (`export_character.py`)
-GLB, +Y up, apply transforms/modifiers, skins, morph targets (with normals), `export_animation_mode='ACTIONS'` (every action → one glTF animation), force sampling every frame, `export_optimize_animation_size`, JPEG images (quality 88), no custom attributes, metadata from the armature's `sidhel` property → node extras. Draco **off** (the game must not fetch a decoder from a CDN).
+GLB, +Y up, apply transforms/modifiers, skins, morph targets (positions only), `export_animation_mode='ACTIONS'` (every action → one glTF animation), force sampling every frame, `export_optimize_animation_size`, JPEG images (quality 88), no custom attributes, metadata from the armature's `sidhel` property → node extras. Draco **off** (the game must not fetch a decoder from a CDN).
 
 ## Measured output (thief.glb)
 | Metric | Value |
 |---|---|
-| File | **1,215 KB** (1,706 KB raw export → optimised) |
+| File | **1,360 KB** (1,706 KB raw export → optimised) |
 | Triangles | 12,428 (body mesh 2 primitives + headband 1) |
 | Draw calls | 3 (same as the placeholder) |
 | Materials | 2 (`Thief_Skin`, `Thief_Cloth`) |
 | Textures | 3: skin base 1024² JPEG, cloth base 1024² JPEG, skin ORM 512² JPEG; GPU ≈ 12 MB (≈ 4 MB on Low, runtime-downscaled) |
 | Skeleton | 32 joints (`root` + 31 deform) |
 | Clips | 18, 30 fps, in place |
-| Morph targets | `LungiTuck`, `Blink` (sparse) |
+| Morph targets | `LungiTuck` (1,503 verts), `Blink` (771 verts); positions only, dense (D-050) |
 
 ## Conventions
 - Metres; glTF +Y up; character forward **+Z** (Blender −Y); origin between the feet.

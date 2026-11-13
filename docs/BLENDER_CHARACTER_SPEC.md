@@ -26,7 +26,7 @@ Avoid: generic mannequin proportions, a blank face, rigid tube limbs, plastic-lo
 | Meshes / draw calls | 1 skinned body mesh + the `Headband` toggle mesh; **2 materials**; ≤ 3 draw calls |
 | Textures | ≤ 2 × 1024² base-colour atlases (sRGB, JPEG in the GLB) + ≤ 1 × 512² ORM. GPU ≤ 12 MB (≤ 4 MB on Low via runtime downscale). KTX2 only after on-device testing |
 | Bones | ≤ 40 joints; ≤ 4 influences per vertex |
-| GLB size | ≤ 1.5 MB (current: 1,215 KB) |
+| GLB size | ≤ 1.5 MB (current: 1,360 KB) |
 
 ## 3. Orientation, scale, origin
 - **Units:** metres, 1 Blender unit = 1 m. Apply all transforms before export.

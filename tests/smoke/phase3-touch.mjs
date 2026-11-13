@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { approachSidh, cdpFor, completePreparation, face, launch, makeChecker, openGame, playEntrySkilled, ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, wait, walkPath, BAZAAR_PATHS, MERCHANT_SPOT } from './helpers.mjs';
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
-const SHOTS = process.argv[3] ?? 'test-results/phase3';
+// Flags such as --placeholder are not a screenshot directory.
+const SHOTS = (process.argv[3]?.startsWith('--') ? undefined : process.argv[3]) ?? 'test-results/phase3';
 mkdirSync(SHOTS, { recursive: true });
 const { results, check } = makeChecker();
 const shot = (page, name) => page.screenshot({ path: join(SHOTS, `${name}.png`) });

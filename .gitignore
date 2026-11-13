@@ -4,3 +4,4 @@ test-results
 *.local
 .DS_Store
 *.blend1
+__pycache__/

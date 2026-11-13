@@ -95,6 +95,15 @@ describe('thief GLB asset (Blender, Phase 4A) meets the character spec', () => {
     expect(tris).toBeLessThanOrEqual(13000);
     const targets = root.listMeshes().flatMap((m) => ((m.getExtras() as { targetNames?: string[] }).targetNames ?? []));
     expect(targets).toEqual(expect.arrayContaining(['LungiTuck', 'Blink']));
+    // Each morph target must actually move vertices (an optimiser step once silently zeroed them).
+    for (const m of root.listMeshes()) {
+      const names = (m.getExtras() as { targetNames?: string[] }).targetNames ?? [];
+      names.forEach((name, i) => {
+        let moved = 0;
+        for (const p of m.listPrimitives()) for (const v of p.listTargets()[i]?.getAttribute('POSITION')?.getArray() ?? []) if (v !== 0) moved++;
+        expect(moved, name).toBeGreaterThan(100);
+      });
+    }
     expect(new Set(root.listMaterials().map((m) => m.getName()))).toEqual(new Set(['Thief_Skin', 'Thief_Cloth']));
     expect(root.listNodes().some((n) => n.getName() === 'Headband' && n.getMesh())).toBe(true);
     // Shape keys default to 0 (the runtime drives them).

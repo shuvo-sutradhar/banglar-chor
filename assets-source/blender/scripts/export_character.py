@@ -103,6 +103,7 @@ def main():
         export_extras=True,
         export_skins=True,
         export_morph=True,
+        export_morph_normal=False,  # tuck/blink shading barely changes; halves the morph data
         export_animations=True,
         export_animation_mode="ACTIONS",
         export_force_sampling=True,

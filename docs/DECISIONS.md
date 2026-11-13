@@ -171,8 +171,8 @@ Base colour atlases 1024² (JPEG in the GLB), one 512² ORM only where roughness
 ## D-049 · Fallback chain and runtime-driven blink
 `thief.glb` → `thief_placeholder.glb` → procedural rig (probe per file, error boundary per model). The `Blink` shape key is driven by the runtime (fast close, slower open, random 2–5.5 s, occasional double blink); the placeholder has no `Blink`, so the code is a no-op there.
 
-## D-050 · Sparse morph targets
-glTF morph targets store a delta for every vertex; `LungiTuck` and `Blink` move ~10 % of them. `optimize-glb.mjs` now writes sparse accessors (three.js reads them natively): 1,566 KB → 1,250 KB.
+## D-050 · Morph targets: dense, positions only, guarded
+`LungiTuck` and `Blink` move ~10 % of the vertices, so sparse accessors looked attractive. In glTF Transform 4.2, sparse *normalized int16* accessors (after `quantize()`) are written as **zeros** — both via `sparse()` and via the sparse flag. The first optimised file shipped with an empty `LungiTuck` (the lungi never tucked in game); the browser suites did not notice, an in-game screenshot did. Fix: morph targets stay dense; morph normals are not exported (`export_morph_normal=False`, shading change is negligible) to keep the size down (1,360 KB); `optimize-glb.mjs` re-reads its output and **fails if any morph target is empty**, and the unit test asserts each target moves > 100 vertices.
 
 ## D-051 · Character performance counters
 `perfCounters.ts` times procedural rig updates (`rig`) and the thief mixer (`mixer`) separately from rendering; `__sidhel.perf()`/`resetPerf()` and the snapshot's `thief.stats/loadMs` feed `tests/visual/perf-thief.mjs`. Cost: one `performance.now()` pair per rig per frame.
