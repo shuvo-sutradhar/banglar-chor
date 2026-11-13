@@ -25,14 +25,19 @@ export type SoundId =
   | 'prep-hit'
   | 'prep-miss'
   | 'prep-done'
-  | 'shout';
+  | 'shout'
+  | 'footstep'
+  | 'coins'
+  | 'grumble';
 
 type PlayOptions = { at?: { x: number; z: number }; gain?: number };
+
+export type AmbienceKind = 'night' | 'morning' | 'market';
 
 class AudioManagerImpl {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
-  private ambience: { stop: () => void } | null = null;
+  private ambience: { stop: () => void; kind: AmbienceKind } | null = null;
   private noiseBuffer: AudioBuffer | null = null;
   private listener = { x: 0, z: 0 };
   private volume = 0.8;
@@ -135,6 +140,17 @@ class AudioManagerImpl {
     const a = this.attenuation(opts);
     try {
       switch (id) {
+        case 'footstep':
+          // soft bare foot on packed earth: a short low thump, slightly varied
+          this.noise(0.07, 0.12 * a, 260 + Math.random() * 120, 0, 1.4);
+          break;
+        case 'coins':
+          [0, 0.06, 0.13].forEach((w, i) => this.tone(2400 + i * 380 + Math.random() * 200, 0.12, 'triangle', 0.07 * a, w));
+          break;
+        case 'grumble':
+          this.tone(150, 0.28, 'sawtooth', 0.04 * a, 0, 115);
+          this.tone(120, 0.22, 'sawtooth', 0.035 * a, 0.22, 100);
+          break;
         case 'tap-perfect':
           this.tone(880, 0.12, 'triangle', 0.25 * a);
           this.tone(1320, 0.1, 'sine', 0.12 * a, 0.03);
@@ -209,20 +225,42 @@ class AudioManagerImpl {
     }
   }
 
-  /** Night ambience: crickets and the odd frog, as filtered noise pulses. */
-  startAmbience(): void {
-    if (!this.ctx || this.ambience) return;
+  /**
+   * Ambience beds (procedural): night crickets/frogs, dawn birdsong, market crowd murmur with the
+   * odd bell. Switching kinds cross-fades by stopping the old loop.
+   */
+  startAmbience(kind: AmbienceKind = 'night'): void {
+    if (!this.ctx) return;
+    if (this.ambience?.kind === kind) return;
+    this.stopAmbience();
     let alive = true;
     const loop = () => {
       if (!alive || !this.ctx) return;
       if (this.ctx.state === 'running') {
-        for (let i = 0; i < 3; i++) this.noise(0.05, 0.03, 4800 + Math.random() * 600, i * 0.08, 8);
-        if (Math.random() < 0.15) this.tone(140 + Math.random() * 40, 0.12, 'sine', 0.05, 0.3, 110);
+        if (kind === 'night') {
+          for (let i = 0; i < 3; i++) this.noise(0.05, 0.03, 4800 + Math.random() * 600, i * 0.08, 8);
+          if (Math.random() < 0.15) this.tone(140 + Math.random() * 40, 0.12, 'sine', 0.05, 0.3, 110); // frog
+          if (Math.random() < 0.035) {
+            // a dog barking somewhere far off
+            const f = 330 + Math.random() * 60;
+            [0, 0.2].forEach((w) => this.tone(f, 0.09, 'sawtooth', 0.018, 0.5 + w, f * 0.8));
+          }
+        } else if (kind === 'morning') {
+          const f = 2200 + Math.random() * 1400;
+          for (let i = 0; i < 3; i++) this.tone(f + i * 180, 0.08, 'sine', 0.05, i * 0.1, f * 1.25);
+          if (Math.random() < 0.3) [0, 0.12].forEach((w) => this.tone(3600 + Math.random() * 500, 0.05, 'sine', 0.035, 0.45 + w, 4200)); // second bird
+          if (Math.random() < 0.2) [0, 0.18, 0.36].forEach((w) => this.tone(520, 0.14, 'triangle', 0.05, w, 760)); // rooster-ish
+        } else {
+          this.noise(0.9, 0.05, 600 + Math.random() * 500, 0, 0.6); // crowd murmur
+          if (Math.random() < 0.25) this.tone(180 + Math.random() * 120, 0.25, 'sawtooth', 0.025, 0.2, 240);
+          if (Math.random() < 0.08) this.tone(1800, 0.4, 'triangle', 0.04, 0.4); // stall bell
+        }
       }
-      timer = window.setTimeout(loop, 700 + Math.random() * 900);
+      timer = window.setTimeout(loop, kind === 'market' ? 500 + Math.random() * 500 : 700 + Math.random() * 900);
     };
     let timer = window.setTimeout(loop, 300);
     this.ambience = {
+      kind,
       stop: () => {
         alive = false;
         window.clearTimeout(timer);

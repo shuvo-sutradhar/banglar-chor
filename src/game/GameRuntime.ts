@@ -45,7 +45,7 @@ export type PlayerRuntime = RigDriver & {
   faceHeading: number | null;
 };
 
-export type CameraMode = 'follow' | 'minigame' | 'caught' | 'chase';
+export type CameraMode = 'follow' | 'minigame' | 'caught' | 'chase' | 'conversation';
 
 export type CameraRuntime = {
   yaw: number;

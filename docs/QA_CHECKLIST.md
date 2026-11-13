@@ -5,6 +5,12 @@
 - [x] `npm run build`
 - [x] `npm run smoke` — Phase 1 regression, 35 browser checks, desktop + emulated touch (headless Edge)
 - [x] `npm run smoke:phase2` — Phase 2 gameplay, 56 browser checks (headless Edge)
+- [x] `npm run smoke:phase3` — full NPC-enabled loop: night → dawn → bazaar → 3 merchants → results → save
+- [x] `npm run smoke:phase3-outcomes` — no-loot, replay-clean, dawn timeout, night catch
+- [x] `npm run smoke:phase3-touch` — touch bargaining, recognition, market catch
+- [x] `npm run smoke:premium` — thief GLB in game: clip state follows gameplay, live toggle, missing-file fallback
+- [x] `npm run validate:glb` and the GLB unit test — skeleton, clips, metadata, triangle budget
+- [x] `npm run tour` (desktop and `--mobile`) — before/after screenshots and draw calls at fixed viewpoints
 
 ## Manual — still required on real hardware (not yet performed)
 Mark with device, browser and date when done.
@@ -46,3 +52,18 @@ Mark with device, browser and date when done.
 - [ ] Keyboard-only: menus reachable with Tab, focus ring visible, Esc closes dialogs
 - [ ] Reduced motion: no FOV kick, no foliage/marker sway, slower menu orbit
 - [ ] Contrast of HUD text against bright lantern areas
+
+### Phase 3 feel (needs a human)
+- [ ] Is the persuasion-meter speed fair on a phone (touch latency)?
+- [ ] Are merchant personalities readable without reading the docs?
+- [ ] Is the 90 s window before Rahim arrives too short or too long?
+- [ ] Does the score breakdown feel fair?
+- [ ] Bazaar frame rate on a mid-range phone (crowd + stalls)
+
+### Premium pass (needs a human / real hardware)
+- [ ] The camera cutout dither: acceptable look on a phone screen (and at native DPR), or should it become a smooth fade?
+- [ ] Interior cutaway camera: comfortable when orbiting around the room?
+- [ ] Thief GLB animation feel: does any clip look robotic? Visible foot sliding at walk/run speeds on a 60 Hz display?
+- [ ] Footstep / coin / grumble audio levels on phone speakers
+- [ ] Draw calls and frame time in the bazaar on a mid-range Android (NPC rigs are the largest cost)
+- [ ] **Artist review** of the placeholder thief vs the character spec (it is code-generated, not final art)

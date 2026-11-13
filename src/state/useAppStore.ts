@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { assertTransition, type GamePhase } from '../game/systems/runPhases';
-import { getBrowserStorage, PersistenceService, type LoadNotice, type SaveDocument } from './persistence';
+import { addCompletedRun, getBrowserStorage, PersistenceService, type CompletedRun, type LoadNotice, type SaveDocument } from './persistence';
+import { computeRunScore, summaryLine } from '../game/systems/scoring';
+import { canEnterMarket } from '../game/systems/market';
+import { daylight } from '../game/effects/daylight';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
 import { useRunStore } from './useRunStore';
 
@@ -8,6 +11,7 @@ export type Overlay = 'none' | 'settings' | 'help';
 
 /** Phases with no live simulation where pausing makes no sense. */
 const UNPAUSABLE: readonly GamePhase[] = ['menu', 'night-resolution', 'results'];
+// (dawn is pausable: its animation honours pause)
 
 type AppState = {
   phase: GamePhase;
@@ -20,6 +24,22 @@ type AppState = {
   contextLost: boolean;
   /** Incremented each time a new run starts so 3D state remounts cleanly. */
   sessionId: number;
+  /** Which 3D zone is loaded: the night village or the morning bazaar. */
+  zone: 'village' | 'bazaar';
+  nickname: string;
+  /** Completed runs on THIS device (newest first). */
+  runs: CompletedRun[];
+  /** The run just finished (shown on the results screen). */
+  lastResult: CompletedRun | null;
+  /** False when the last save failed (storage blocked / quota). */
+  lastSaveOk: boolean;
+  setNickname: (name: string) => void;
+  /** night-resolution → dawn (only after an escape with loot). */
+  startDawn: () => void;
+  /** dawn → bazaar: swap the zone; inventory carries over unchanged. */
+  enterBazaar: () => void;
+  /** Any ending → results; saves the run locally exactly once. */
+  showResults: () => void;
 
   /** Menu / results → preparation, with a fresh run. */
   startRun: () => void;
@@ -41,9 +61,26 @@ const persistence = new PersistenceService(getBrowserStorage());
 const initial = persistence.load();
 let savedDoc: SaveDocument = initial.document;
 
-function persist(patch: Partial<SaveDocument>): void {
+function persist(patch: Partial<SaveDocument>): boolean {
   savedDoc = { ...savedDoc, ...patch };
-  persistence.save(savedDoc);
+  return persistence.save(savedDoc);
+}
+
+const NICK_WORDS = ['চতুর', 'চুপচাপ', 'ফাঁকিবাজ', 'তেলতেলা', 'দৌড়বাজ', 'ঘুমকাতুরে'];
+function defaultNickname(): string {
+  const n = Math.floor(Math.random() * 90) + 10;
+  return `${NICK_WORDS[Math.floor(Math.random() * NICK_WORDS.length)]} চোর ${n.toString().replace(/[0-9]/g, (d) => '০১২৩৪৫৬৭৮৯'[Number(d)]!)}`;
+}
+
+/** Fresh documented seed per run (time ^ random); `?debug=1&seed=N` pins it for tests. */
+function seedForNewRun(): number {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    if (q.has('debug') && q.has('seed')) return Number(q.get('seed')) >>> 0;
+  } catch {
+    /* non-browser */
+  }
+  return newSeed();
 }
 
 function newSeed(): number {
@@ -60,12 +97,60 @@ export const useAppStore = create<AppState>()((set, get) => ({
   sceneReady: false,
   contextLost: false,
   sessionId: 0,
+  zone: 'village',
+  nickname: initial.document.nickname ?? defaultNickname(),
+  runs: initial.document.runs,
+  lastResult: null,
+  lastSaveOk: true,
 
   startRun: () => {
     const { phase, sessionId } = get();
     const next = assertTransition(phase, 'preparation');
-    useRunStore.getState().newRun(newSeed());
-    set({ phase: next, paused: false, overlay: 'none', sessionId: sessionId + 1 });
+    useRunStore.getState().newRun(seedForNewRun());
+    daylight.factor = 0;
+    set({ phase: next, paused: false, overlay: 'none', sessionId: sessionId + 1, zone: 'village', lastResult: null });
+  },
+  setNickname: (name) => {
+    const nickname = name.trim().slice(0, 24) || defaultNickname();
+    set({ nickname });
+    persist({ nickname });
+  },
+  startDawn: () => {
+    const run = useRunStore.getState().run;
+    if (!run || !canEnterMarket(run)) return;
+    get().goTo('dawn');
+  },
+  enterBazaar: () => {
+    if (get().phase !== 'dawn') return;
+    if (!useRunStore.getState().enterMarket(0)) return;
+    daylight.factor = 1;
+    set({ zone: 'bazaar' });
+    get().goTo('bazaar');
+  },
+  showResults: () => {
+    const run = useRunStore.getState().run;
+    if (!run) return;
+    const { phase } = get();
+    if (phase === 'results') return;
+    const b = computeRunScore(run);
+    const record: CompletedRun = {
+      id: run.id,
+      seed: run.seed,
+      endedAtIso: new Date().toISOString(),
+      nickname: get().nickname,
+      outcome: b.outcome,
+      score: b.score,
+      money: b.money,
+      collected: b.stats.collected,
+      sold: b.stats.sold,
+      lost: b.stats.lost,
+      detections: b.stats.detections,
+      caught: b.stats.caught,
+      line: summaryLine(run, b),
+    };
+    const doc = addCompletedRun(savedDoc, record);
+    const ok = persist({ runs: doc.runs });
+    set({ phase: assertTransition(phase, 'results'), paused: false, overlay: 'none', lastResult: record, runs: doc.runs, lastSaveOk: ok });
   },
   goTo: (to) => {
     const { phase } = get();
@@ -118,6 +203,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
 }));
 
 /** Phases in which the player avatar and NPCs exist in the world. */
-export const WORLD_PHASES: readonly GamePhase[] = ['night', 'entry', 'interior', 'chase', 'caught'];
+export const WORLD_PHASES: readonly GamePhase[] = ['night', 'entry', 'interior', 'chase', 'caught', 'bazaar', 'bargain'];
 /** Phases in which the player can walk around. */
-export const CONTROL_PHASES: readonly GamePhase[] = ['night', 'interior', 'chase'];
+export const CONTROL_PHASES: readonly GamePhase[] = ['night', 'interior', 'chase', 'bazaar'];

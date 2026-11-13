@@ -3,7 +3,30 @@ import { DEFAULT_SETTINGS, settingsSchema, type Settings } from './settings';
 
 /** Versioned local-only save key (README §12). Nothing here is ever sent to a server. */
 export const SAVE_KEY = 'sidhel-chor:v1';
-export const SAVE_VERSION = 1;
+/** Document schema version (v1 = Phase 1–2, v2 = Phase 3 run history). */
+export const SAVE_VERSION = 2;
+export const MAX_SAVED_RUNS = 20;
+
+export const FINAL_OUTCOMES = ['night-caught', 'night-empty', 'night-escaped', 'completed', 'market-escaped', 'market-caught'] as const;
+
+/** One finished run, as stored on THIS device only (not verified, not global). */
+export const completedRunSchema = z.object({
+  id: z.string().max(64),
+  seed: z.number().int().nonnegative(),
+  endedAtIso: z.string().max(40),
+  nickname: z.string().max(24),
+  outcome: z.enum(FINAL_OUTCOMES),
+  score: z.number().int().nonnegative(),
+  money: z.number().int().nonnegative(),
+  collected: z.number().int().nonnegative(),
+  sold: z.number().int().nonnegative(),
+  lost: z.number().int().nonnegative(),
+  detections: z.number().int().nonnegative(),
+  caught: z.boolean(),
+  line: z.string().max(200),
+});
+
+export type CompletedRun = z.output<typeof completedRunSchema>;
 
 export const saveDocumentSchema = z.object({
   version: z.literal(SAVE_VERSION),
@@ -11,6 +34,8 @@ export const saveDocumentSchema = z.object({
   nickname: z.string().max(24).optional(),
   /** Set after the first completed preparation ritual; enables the skip button. */
   preparationDone: z.boolean().default(false),
+  /** Most recent completed runs, newest first (bounded). */
+  runs: z.array(completedRunSchema).max(MAX_SAVED_RUNS).default([]),
 });
 
 export type SaveDocument = z.output<typeof saveDocumentSchema>;
@@ -23,7 +48,7 @@ export type LoadNotice = 'none' | 'corrupt-reset' | 'version-reset' | 'storage-u
 export type LoadResult = { document: SaveDocument; notice: LoadNotice };
 
 export function createDefaultDocument(): SaveDocument {
-  return { version: SAVE_VERSION, settings: { ...DEFAULT_SETTINGS }, preparationDone: false };
+  return { version: SAVE_VERSION, settings: { ...DEFAULT_SETTINGS }, preparationDone: false, runs: [] };
 }
 
 /** Safely obtain localStorage; returns null when blocked (private mode, sandboxed iframe, etc.). */
@@ -68,16 +93,20 @@ export class PersistenceService {
     }
 
     const version = typeof parsed === 'object' && parsed !== null ? (parsed as { version?: unknown }).version : undefined;
-    if (version !== SAVE_VERSION) {
-      // No older versions exist yet; future migrations plug in here.
+    if (version === 1) parsed = migrateV1(parsed as Record<string, unknown>);
+    else if (version !== SAVE_VERSION) {
       return { document: createDefaultDocument(), notice: 'version-reset' };
     }
 
     const result = saveDocumentSchema.safeParse(parsed);
     if (!result.success) {
       // Salvage valid settings fields where possible instead of discarding everything.
-      const salvaged = salvageSettings((parsed as { settings?: unknown }).settings);
-      return { document: { version: SAVE_VERSION, settings: salvaged, preparationDone: false }, notice: 'corrupt-reset' };
+      const p = parsed as { settings?: unknown; runs?: unknown; nickname?: unknown; preparationDone?: unknown };
+      const salvaged = salvageSettings(p.settings);
+      // Keep every individually valid run record (partial / damaged saves).
+      const runs = Array.isArray(p.runs) ? p.runs.flatMap((r) => { const v = completedRunSchema.safeParse(r); return v.success ? [v.data] : []; }).slice(0, MAX_SAVED_RUNS) : [];
+      const nickname = typeof p.nickname === 'string' && p.nickname.length <= 24 ? p.nickname : undefined;
+      return { document: { version: SAVE_VERSION, settings: salvaged, preparationDone: p.preparationDone === true, runs, nickname }, notice: 'corrupt-reset' };
     }
     return { document: result.data, notice: 'none' };
   }
@@ -106,4 +135,19 @@ function salvageSettings(input: unknown): Settings {
     if (fieldResult.success) (settings as Record<keyof Settings, unknown>)[key] = fieldResult.data;
   }
   return settings;
+}
+
+/** v1 (Phase 1–2) → v2: same settings/nickname/preparation flag, empty run history. */
+export function migrateV1(doc: Record<string, unknown>): Record<string, unknown> {
+  return { ...doc, version: 2, runs: [] };
+}
+
+/** Add a finished run (newest first, bounded) — returns a new document. Idempotent per run id. */
+export function addCompletedRun(doc: SaveDocument, run: CompletedRun): SaveDocument {
+  if (doc.runs.some((r) => r.id === run.id)) return doc;
+  return { ...doc, runs: [run, ...doc.runs].slice(0, MAX_SAVED_RUNS) };
+}
+
+export function personalBest(doc: SaveDocument): CompletedRun | null {
+  return doc.runs.reduce<CompletedRun | null>((best, r) => (!best || r.score > best.score ? r : best), null);
 }

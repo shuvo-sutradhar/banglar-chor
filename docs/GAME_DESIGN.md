@@ -45,3 +45,15 @@ A player may leave the village edge before entering any house; the prompt then s
 - Every phase has a path back to `menu` (unit-tested graph in `runPhases.ts`).
 - Houses always keep their exit, and "বের হও" (leave) is available whenever no catch animation is playing.
 - World layout is validated by tests: vegetation never blocks the road, house fronts or the pond ghat.
+
+## 6. Dawn and the bazaar (Phase 3)
+- The bazaar is offered **only** after an escape with loot. Empty-handed escapes, night catches and dawn catches go straight to results (no empty trading loop).
+- Dawn: the sky, light and fog animate night → morning (skippable), then the player spawns at the haat's south gate with the same ঝোলা.
+- Three merchants each buy some categories better than others. A trade is: pick an item → the merchant examines it (defects may be found and lower the offer) → opening offer → up to N counters (+10/25/50 %), each judged by a persuasion-meter tap (perfect/good/miss) → accept, or walk away. Pushing too far or a missed tap can make the merchant refuse that item for this visit. Patience recovers between visits.
+- Recognition (D-033) is deterministic and shown as a warning. Excuse (meter) or withdraw. Failed excuses alert the watchman (পাহারাদার), who patrols and gains sight only while the market is on alert.
+- Rahim arrives late, announced (D-036).
+- The market ends by: leaving through a gate (confirmed), escaping through a gate during a chase, or being caught (unsold items confiscated + 50 % money fine, D-035). There is no market timer. Rahim's arrival is the pressure.
+
+## 7. Score and results (Phase 3)
+- `computeRunScore` (D-034) is pure. The results screen shows the itemised breakdown, final money, outcome, a one-line summary, and the personal best.
+- Completed runs are saved locally (schema v2, last 20 runs, with v1 migration). Play again starts a clean run with a fresh seed.

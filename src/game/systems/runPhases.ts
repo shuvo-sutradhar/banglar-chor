@@ -23,13 +23,14 @@ export const PHASE_TRANSITIONS: Readonly<Record<GamePhase, readonly GamePhase[]>
   night: ['entry', 'chase', 'caught', 'night-resolution', 'menu'],
   entry: ['interior', 'night', 'chase', 'caught', 'night-resolution', 'menu'],
   interior: ['night', 'chase', 'caught', 'night-resolution', 'menu'],
-  chase: ['night', 'interior', 'caught', 'night-resolution', 'menu'],
+  // A chase happens at night (village) or in the bazaar; it returns to where it started.
+  chase: ['night', 'interior', 'bazaar', 'caught', 'night-resolution', 'results', 'menu'],
   caught: ['night-resolution', 'results', 'menu'],
-  // Phase 2 ends the run at night-resolution; Phase 3 continues to dawn/bazaar/results.
+  // After the night: escaped with loot → dawn → bazaar; any other outcome → results.
   'night-resolution': ['dawn', 'results', 'preparation', 'menu'],
   dawn: ['bazaar', 'menu'],
-  bazaar: ['bargain', 'results', 'chase', 'menu'],
-  bargain: ['bazaar', 'chase', 'results', 'menu'],
+  bazaar: ['bargain', 'results', 'chase', 'caught', 'menu'],
+  bargain: ['bazaar', 'chase', 'caught', 'results', 'menu'],
   results: ['menu', 'preparation'],
 };
 

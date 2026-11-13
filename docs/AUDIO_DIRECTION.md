@@ -12,9 +12,13 @@ All sound is synthesized at runtime with the Web Audio API in `src/game/audio/Au
 | cluck, alarm-ring, radio, rattle | Item effects | square chirps / beeps / simple original jingle / filtered noise |
 | suspicious, alert, shout | NPC reactions | rising tone / two-note sting / vocal-ish sweep |
 | snore, caught | Rahim asleep / catch scene | low filtered noise / descending sting |
-| ambience | Night | sparse high-band "cricket" noise pulses, occasional frog tone |
+| ambience | Night / morning / market | crickets, frogs, a rare **distant dog** (night); two bird voices plus a rooster (morning); crowd murmur, voices and a stall bell (market) |
+| footstep *(premium pass)* | Every real footstep noise event; louder running, quieter crouched | short low band-passed thump |
+| coins / grumble *(premium pass)* | Sale completed / merchant refuses | bright triangle jingle / low sawtooth mutter |
 
 Rules already enforced: no sound before the Start click; suspended while paused or the tab is hidden; volume and mute in settings; attenuated by distance from the player; every cue has a caption, so it works with audio off.
+
+**Still temporary (premium pass, honest):** these are synthesized stand-ins, not recordings. **No voice recordings exist**; every line is subtitled. Footsteps are tied to the same stride events that emit gameplay noise, so the sound matches the noise the NPCs hear.
 
 ## Planned (Phase 4)
 - Recorded or carefully designed original SFX: footsteps on dirt/mud floor, tin rattle, brass clang, hen, radio jingle, crowd murmur, night ambience bed (crickets, frogs, distant dog, wind in bamboo).

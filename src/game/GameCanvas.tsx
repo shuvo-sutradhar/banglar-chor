@@ -1,16 +1,23 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Physics, useRapier } from '@react-three/rapier';
-import { PCFSoftShadowMap, type Material, type Mesh } from 'three';
+import { PCFSoftShadowMap, type BufferGeometry, type Material, type Mesh, type Points } from 'three';
 import { useAppStore, WORLD_PHASES } from '../state/useAppStore';
 import { useRunStore } from '../state/useRunStore';
 import { debugEnabled, debugHooks, npcsDisabledForTests } from './debugHooks';
+import { thiefVisual } from './characters/glb/thiefAsset';
 import { WorldItems } from './world/WorldItems';
 import { NightDirector } from './systems/NightDirector';
-import { VillagerNpc } from './characters/VillagerNpc';
+import { PatrolNpc } from './characters/PatrolNpc';
+import { MOJNU_CONFIG } from './characters/npcConfigs';
 import { RahimSleeper } from './characters/RahimSleeper';
 import { CaughtScene } from './scenes/CaughtScene';
 import { PrepCamera, PrepStage } from './scenes/PrepStage';
+import { DawnScene } from './scenes/DawnScene';
+import { BazaarScenery } from './world/BazaarScenery';
+import { BazaarWorld } from './systems/BazaarDirector';
+import { BAZAAR_SPAWN } from './world/bazaarLayout';
+import { PLAYER_SPAWN } from './data/tuning';
 import { useHudStore } from '../state/useHudStore';
 import type { QualityProfile } from '../state/settings';
 import { useQualityProfile } from './quality';
@@ -53,6 +60,8 @@ function SceneReadySignal() {
 /** Debug hook for automated smoke tests: exposes read-only simulation state when `?debug=1` (or in dev). */
 function DebugBridge() {
   const runtime = useGameRuntime();
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
   useEffect(() => {
     if (!debugEnabled()) return;
     const w = window as unknown as { __sidhel?: unknown };
@@ -78,15 +87,49 @@ function DebugBridge() {
         cosmetic: { ...runtime.player.cosmetic },
         prep: debugHooks.prep?.() ?? null,
         entry: debugHooks.entry?.() ?? null,
+        zone: useAppStore.getState().zone,
+        market: (() => {
+          const r = useRunStore.getState();
+          const m = r.run?.market;
+          return m
+            ? { money: m.money, sold: m.sold.map((s) => ({ id: s.instanceId, lootId: s.lootId, price: s.price, merchant: s.merchantId })), merchants: m.merchants, recognitions: m.recognitions, detections: m.detections, outcome: m.outcome, wanted: r.wanted, rahimRecognition: r.rahimRecognition, activeMerchant: r.activeMerchant, exitPrompt: r.exitPrompt }
+            : null;
+        })(),
+        trade: debugHooks.trade?.() ?? null,
+        persuade: debugHooks.persuade?.() ?? null,
+        dawn: debugHooks.dawn?.() ?? null,
+        thief: { visual: thiefVisual.kind, error: thiefVisual.error, anim: debugHooks.anim?.() ?? null },
+        lastResult: useAppStore.getState().lastResult,
+        savedRuns: useAppStore.getState().runs.length,
+        render: { calls: gl.info.render.calls, triangles: gl.info.render.triangles, geometries: gl.info.memory.geometries, textures: gl.info.memory.textures },
+        listeners: { noise: runtime.noise.listenerCount, interactions: runtime.interactions.size, npcs: runtime.npcs.size },
       }),
       setCameraYaw: (yaw: number) => {
         runtime.camera.yaw = yaw;
+      },
+      /** Debug: visible draw items grouped by material/geometry type (where do draw calls go?). */
+      drawBreakdown: () => {
+        const counts = new Map<string, number>();
+        scene.traverseVisible((o) => {
+          const m = o as Mesh;
+          if (!m.isMesh && !(o as Points).isPoints) return;
+          const mats = Array.isArray(m.material) ? m.material : [m.material];
+          for (const mt of mats) {
+            const key = `${o.type}:${mt?.type ?? '?'}:${(m.geometry as BufferGeometry | undefined)?.type ?? '?'}`;
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+          }
+        });
+        return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25);
+      },
+      /** Test-only time skip for long timers (night clock, Rahim arrival). Requires ?debug=1. */
+      advanceClock: (sec: number) => {
+        runtime.simTime += sec;
       },
     };
     return () => {
       delete w.__sidhel;
     };
-  }, [runtime]);
+  }, [runtime, gl, scene]);
   return null;
 }
 
@@ -113,12 +156,13 @@ function DebugPhysicsBridge() {
   return null;
 }
 
-const SIMULATING = ['night', 'entry', 'interior', 'chase'];
+const SIMULATING = ['night', 'entry', 'interior', 'chase', 'bazaar', 'bargain'];
 
 function World({ quality }: { quality: QualityProfile }) {
   const phase = useAppStore((s) => s.phase);
   const paused = useAppStore((s) => s.paused);
   const sessionId = useAppStore((s) => s.sessionId);
+  const zone = useAppStore((s) => s.zone);
   const inWorld = WORLD_PHASES.includes(phase);
   const npcs = !npcsDisabledForTests();
 
@@ -126,28 +170,36 @@ function World({ quality }: { quality: QualityProfile }) {
     <Physics timeStep={1 / 60} paused={paused || !SIMULATING.includes(phase)} updatePriority={-50} gravity={[0, -22, 0]}>
       <SceneReadySignal />
       <DebugPhysicsBridge />
-      <VillageScenery />
+      {/* Only one zone's colliders/meshes exist at a time (no duplicate physics, D-031). */}
+      {zone === 'village' ? <VillageScenery /> : <BazaarScenery />}
       {inWorld && (
-        <group key={sessionId}>
-          <Player />
+        <group key={`${sessionId}-${zone}`}>
+          <Player spawn={zone === 'bazaar' ? BAZAAR_SPAWN : PLAYER_SPAWN} />
           <ThirdPersonCamera />
-          <ZoneSystem />
           <InteractionDriver />
-          <VillageInteractables />
-          <WorldItems />
-          <NightDirector />
-          {npcs && <VillagerNpc />}
-          <RahimSleeper />
+          {zone === 'village' ? (
+            <>
+              <ZoneSystem />
+              <VillageInteractables />
+              <WorldItems />
+              <NightDirector />
+              {npcs && <PatrolNpc config={MOJNU_CONFIG} />}
+              <RahimSleeper />
+            </>
+          ) : (
+            <BazaarWorld />
+          )}
           {phase === 'caught' && <CaughtScene />}
         </group>
       )}
+      {phase === 'dawn' && <DawnScene />}
       {phase === 'preparation' && (
         <>
           <PrepStage />
           <PrepCamera />
         </>
       )}
-      {!inWorld && phase !== 'preparation' && <MenuCamera />}
+      {!inWorld && phase !== 'preparation' && phase !== 'dawn' && <MenuCamera />}
       <NightAtmosphere quality={quality} />
     </Physics>
   );

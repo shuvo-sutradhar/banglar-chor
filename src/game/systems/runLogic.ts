@@ -1,10 +1,35 @@
 import { generateHouseLoot, HOUSE_PROFILES, type HouseId } from '../data/houses';
 import { LOOT, lootScoreValue, type LootId } from '../data/loot';
 import type { InventoryItem, WorldItem } from './inventory';
+import type { MerchantId } from '../data/merchants';
+import type { MerchantState } from './bargaining';
 
 export type NightOutcome = 'escaped-with-loot' | 'escaped-empty' | 'caught' | 'dawn-caught';
 
-export type RunEventType = 'pickup' | 'drop' | 'alert' | 'chase' | 'catch' | 'escape' | 'entry-success' | 'entry-fail' | 'house-enter' | 'house-exit' | 'confiscate';
+export type RunEventType =
+  | 'pickup'
+  | 'drop'
+  | 'alert'
+  | 'chase'
+  | 'catch'
+  | 'escape'
+  | 'entry-success'
+  | 'entry-fail'
+  | 'house-enter'
+  | 'house-exit'
+  | 'confiscate'
+  | 'dawn'
+  | 'market-enter'
+  | 'sale'
+  | 'sale-refused'
+  | 'recognition'
+  | 'excuse'
+  | 'market-alarm'
+  | 'market-chase'
+  | 'market-escape'
+  | 'market-catch'
+  | 'fine'
+  | 'market-exit';
 
 export type RunEvent = {
   id: number;
@@ -30,6 +55,24 @@ export type RunState = {
   chases: number;
   caughtCount: number;
   outcome: NightOutcome | null;
+  /** Phase 3 market state (null until the bazaar). */
+  market: MarketState | null;
+  /** Who made a night catch (drives result lines). */
+  caughtBy?: 'mojnu' | 'rahim' | 'dawn';
+};
+
+export type SoldItem = InventoryItem & { price: number; merchantId: MerchantId; atSec: number };
+
+export type MarketOutcome = 'completed' | 'escaped' | 'caught';
+
+export type MarketState = {
+  money: number;
+  sold: readonly SoldItem[];
+  merchants: Record<MerchantId, MerchantState>;
+  recognitions: number;
+  detections: number;
+  fine: number;
+  outcome: MarketOutcome | null;
 };
 
 export type LocalToWorld = (houseId: HouseId, local: [number, number, number]) => [number, number, number];
@@ -43,7 +86,9 @@ export function createRun(seed: number, startTimeIso: string, toWorld: LocalToWo
     return { instanceId: p.instanceId, lootId: p.lootId, sourceHouseId: p.houseId, position: toWorld(p.houseId, slot.local), dropped: false };
   });
   return {
-    id: `run-${seed.toString(36)}`,
+    // Seed + start time: replays with the same (e.g. pinned debug) seed must not overwrite each
+    // other in the saved history (persistence dedupes by id).
+    id: `run-${seed.toString(36)}-${(Date.parse(startTimeIso) || 0).toString(36)}`,
     seed,
     startTimeIso,
     houseIdsEntered: [],
@@ -56,6 +101,7 @@ export function createRun(seed: number, startTimeIso: string, toWorld: LocalToWo
     chases: 0,
     caughtCount: 0,
     outcome: null,
+    market: null,
   };
 }
 
@@ -67,10 +113,10 @@ export function appendEvent(run: RunState, ev: Omit<RunEvent, 'id'>): RunState {
  * Resolve the night exactly once (idempotent). A catch confiscates ALL carried loot (GAME_DESIGN §2);
  * escapes keep inventory unchanged.
  */
-export function resolveNight(run: RunState, outcome: NightOutcome, atSec: number): RunState {
+export function resolveNight(run: RunState, outcome: NightOutcome, atSec: number, by?: 'mojnu' | 'rahim' | 'dawn'): RunState {
   if (run.outcome) return run;
   if (outcome === 'caught' || outcome === 'dawn-caught') {
-    let next: RunState = { ...run, outcome, caughtCount: run.caughtCount + 1, confiscated: [...run.confiscated, ...run.inventory], inventory: [] };
+    let next: RunState = { ...run, outcome, caughtBy: by, caughtCount: run.caughtCount + 1, confiscated: [...run.confiscated, ...run.inventory], inventory: [] };
     next = appendEvent(next, { type: 'catch', atSec, context: outcome });
     for (const item of run.inventory) next = appendEvent(next, { type: 'confiscate', atSec, itemId: item.lootId, instanceId: item.instanceId, value: LOOT[item.lootId].baseValue });
     return next;

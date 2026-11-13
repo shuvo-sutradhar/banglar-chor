@@ -3,9 +3,10 @@ import { CylinderGeometry, type Material, type PointLight } from 'three';
 import { UNIT_BOX, UNIT_CYLINDER, UNIT_SPHERE, rampGeometry } from './sharedGeometry';
 import { useFrame } from '@react-three/fiber';
 import { ConvexHullCollider, CuboidCollider, RigidBody } from '@react-three/rapier';
-import { CAMERA_TRANSPARENT } from '../physics/queries';
+import { CAMERA_TRANSPARENT, HOUSE_SHELL } from '../physics/queries';
 import { mat } from './materials';
 import { useAppStore } from '../../state/useAppStore';
+import { daylight } from '../effects/daylight';
 import type { Placement } from './layout';
 
 
@@ -31,6 +32,7 @@ export function Block({
   material,
   collider = false,
   thin = false,
+  shell = false,
   castShadow = true,
 }: {
   size: Vec3;
@@ -39,6 +41,8 @@ export function Block({
   material: Material;
   collider?: boolean;
   thin?: boolean;
+  /** Wall/ceiling of an enterable house (see HOUSE_SHELL). */
+  shell?: boolean;
   castShadow?: boolean;
 }) {
   return (
@@ -49,7 +53,7 @@ export function Block({
           args={[size[0] / 2, size[1] / 2, size[2] / 2]}
           position={position}
           rotation={rotation}
-          name={thin ? CAMERA_TRANSPARENT : undefined}
+          name={thin ? CAMERA_TRANSPARENT : shell ? HOUSE_SHELL : undefined}
         />
       )}
     </>
@@ -101,12 +105,14 @@ export function Lantern({ position, light = true, intensity = 7, distance = 9 }:
   useFrame(({ clock }) => {
     const l = lightRef.current;
     if (!l) return;
+    // Lanterns are put out as morning comes.
+    const night = 1 - daylight.factor;
     if (useAppStore.getState().settings.reducedMotion) {
-      l.intensity = intensity;
+      l.intensity = intensity * night;
       return;
     }
     const t = clock.elapsedTime + seed;
-    l.intensity = intensity * (0.9 + 0.06 * Math.sin(t * 7.3) + 0.04 * Math.sin(t * 13.7));
+    l.intensity = intensity * night * (0.9 + 0.06 * Math.sin(t * 7.3) + 0.04 * Math.sin(t * 13.7));
   });
   return (
     <group position={position}>

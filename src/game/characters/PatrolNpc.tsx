@@ -4,25 +4,21 @@ import { useFrame } from '@react-three/fiber';
 import { CapsuleCollider, RigidBody, useBeforePhysicsStep, useRapier, type RapierCollider, type RapierRigidBody } from '@react-three/rapier';
 import { dampAngle } from '../../lib/math';
 import { useAppStore } from '../../state/useAppStore';
-import { useRunStore } from '../../state/useRunStore';
-import { useGameRuntime, type NpcRuntime } from '../GameRuntime';
-import { createBrain, NPC_SPEEDS, stepBrain, VILLAGER_BRAIN_DEFAULTS, type BrainConfig, type HeardPercept, type XZ } from '../ai/npcBrain';
+import { useGameRuntime, type GameRuntime, type NpcRuntime } from '../GameRuntime';
+import { createBrain, NPC_SPEEDS, stepBrain, VILLAGER_BRAIN_DEFAULTS, type BarkId, type BrainConfig, type HeardPercept, type XZ } from '../ai/npcBrain';
+import type { NavGraph } from '../ai/navGraph';
 import { exposureAt, inViewCone, sightSuspicionRate, VILLAGER_SIGHT } from '../ai/perception';
-import { inExitZone, LIGHT_POOLS, VILLAGE_NAV, VILLAGER_ROUTE } from '../ai/villageNav';
-import { hearingStrength } from '../systems/noise';
-import { MOJNU_BARKS, MOJNU_NAME } from '../data/dialogue';
+import { hearingStrength, type NoiseEvent } from '../systems/noise';
 import { NPC_COLLIDER, PLAYER_COLLIDER } from '../physics/queries';
 import { audio } from '../audio/AudioManager';
-import { triggerCaught, say } from '../systems/nightActions';
-import { HumanRig } from './HumanRig';
-import { MOJNU_LOOK } from './appearances';
+import { say } from '../systems/nightActions';
+import { HumanRig, type Appearance } from './HumanRig';
 import { setAction, type RigDriver } from './rigTypes';
 
 type KinematicController = ReturnType<ReturnType<typeof useRapier>['world']['createCharacterController']>;
 
 const SIGHT_INTERVAL = 0.1;
 const EYE_HEIGHT = 1.55;
-const NPC_ID = 'mojnu';
 
 function iconTexture(symbol: string, color: string): CanvasTexture {
   const c = document.createElement('canvas');
@@ -58,12 +54,32 @@ function coneGeometry(range: number, fov: number): BufferGeometry {
   return g;
 }
 
+export type PatrolNpcConfig = {
+  id: string;
+  nameBn: string;
+  look: Appearance;
+  route: readonly XZ[];
+  nav: NavGraph;
+  lights: readonly { x: number; z: number; radius: number }[];
+  /** Player standing here is out of bounds for this NPC (safe exit). */
+  isSafe: (p: XZ) => boolean;
+  barks: Record<BarkId, readonly string[]>;
+  /** When false the NPC does not build suspicion from sight (e.g. market watchman before an alarm). */
+  sightEnabled?: () => boolean;
+  /** Which noise events this NPC reacts to (default: all). */
+  hearingFilter?: (e: NoiseEvent) => boolean;
+  onAlerted?: (rt: GameRuntime) => void;
+  onCaught: (rt: GameRuntime) => void;
+  /** Sprint speed override (m/s); defaults to NPC_SPEEDS.run. */
+  runSpeed?: number;
+};
+
 /**
- * মজনু মিয়া — night patrol villager. Real perception (FOV + line-of-sight raycast + light
- * exposure + posture; hearing from world noise events with wall muffling), FSM brain, nav-graph
- * pathfinding, Rapier kinematic character controller (no clipping through houses).
+ * Patrol NPC (মজনু মিয়া at night, the market watchman in the bazaar). Real perception (FOV +
+ * line-of-sight raycast + light exposure + posture; hearing from world noise events with wall
+ * muffling), FSM brain, nav-graph pathfinding, Rapier kinematic character controller.
  */
-export function VillagerNpc() {
+export function PatrolNpc({ config }: { config: PatrolNpcConfig }) {
   const runtime = useGameRuntime();
   const { world, rapier, colliderStates } = useRapier();
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -73,9 +89,9 @@ export function VillagerNpc() {
   const coneRef = useRef<Mesh>(null);
   const controllerRef = useRef<KinematicController | null>(null);
 
-  const cfg: BrainConfig = useMemo(() => ({ ...VILLAGER_BRAIN_DEFAULTS, route: VILLAGER_ROUTE }), []);
+  const cfg: BrainConfig = useMemo(() => ({ ...VILLAGER_BRAIN_DEFAULTS, route: config.route }), [config.route]);
   const sim = useMemo(() => {
-    const start = VILLAGER_ROUTE[0] as XZ;
+    const start = config.route[0] as XZ;
     return {
       brain: createBrain(),
       driver: { horizontalSpeed: 0, mode: 'idle', action: null, actionTime: 0 } as RigDriver,
@@ -87,11 +103,11 @@ export function VillagerNpc() {
       pathTarget: null as XZ | null,
       repathTimer: 0,
       lastBarkAt: -99,
-      npc: { id: NPC_ID, nameBn: MOJNU_NAME, position: new Vector3(start.x, 0, start.z), facing: new Vector3(0, 0, -1), state: 'patrol', suspicion: 0 } as NpcRuntime,
+      npc: { id: config.id, nameBn: config.nameBn, position: new Vector3(start.x, 0, start.z), facing: new Vector3(0, 0, -1), state: 'patrol', suspicion: 0 } as NpcRuntime,
       ray: new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }),
       move: { x: 0, y: 0, z: 0 },
     };
-  }, [rapier]);
+  }, [rapier, config]);
 
   const visuals = useMemo(
     () => ({
@@ -129,12 +145,12 @@ export function VillagerNpc() {
   }, [world]);
 
   useEffect(() => {
-    runtime.npcs.set(NPC_ID, sim.npc);
+    runtime.npcs.set(config.id, sim.npc);
     sim.lastNoiseId = runtime.noise.lastId;
     return () => {
-      runtime.npcs.delete(NPC_ID);
+      runtime.npcs.delete(config.id);
     };
-  }, [runtime, sim]);
+  }, [runtime, sim, config.id]);
 
   /** Ray between two points; true if solid world geometry blocks it (ignores player/NPC capsules). */
   const blocked = (ax: number, ay: number, az: number, bx: number, by: number, bz: number): boolean => {
@@ -174,7 +190,8 @@ export function VillagerNpc() {
       sim.sightTimer = 0;
       sim.sightRate = 0;
       // Beyond the village edge the patrol does not pursue or build suspicion (safe exit, README §7).
-      if (playerPresent && !inExitZone({ x: player.position.x, z: player.position.z })) {
+      const sightOn = config.sightEnabled ? config.sightEnabled() : true;
+      if (sightOn && playerPresent && !config.isSafe({ x: player.position.x, z: player.position.z })) {
         const crouched = player.mode === 'crouch-idle' || player.mode === 'crouch-walk';
         const dx = player.position.x - p.x;
         const dz = player.position.z - p.z;
@@ -183,7 +200,7 @@ export function VillagerNpc() {
           const targetY = player.position.y + (crouched ? 0.7 : 1.15);
           const los = !blocked(p.x, p.y + EYE_HEIGHT, p.z, player.position.x, targetY, player.position.z);
           if (los) {
-            const exposure = exposureAt(player.position.x, player.position.z, [...LIGHT_POOLS, { x: p.x, z: p.z, radius: 3.5 }]);
+            const exposure = exposureAt(player.position.x, player.position.z, [...config.lights, { x: p.x, z: p.z, radius: 3.5 }]);
             sim.sightRate = sightSuspicionRate({ ...cone, running: player.mode === 'run', exposure, lineOfSight: true }, VILLAGER_SIGHT);
           }
         }
@@ -195,6 +212,7 @@ export function VillagerNpc() {
     const events = runtime.noise.since(sim.lastNoiseId, runtime.simTime);
     sim.lastNoiseId = runtime.noise.lastId;
     for (const e of events) {
+      if (config.hearingFilter && !config.hearingFilter(e)) continue;
       const d = Math.hypot(e.x - p.x, e.z - p.z);
       if (d >= e.radius) continue;
       const occluded = blocked(p.x, p.y + EYE_HEIGHT, p.z, e.x, e.y + 0.5, e.z);
@@ -213,7 +231,7 @@ export function VillagerNpc() {
         playerPos: sees ? { x: player.position.x, z: player.position.z } : null,
         distanceToPlayer: Math.hypot(player.position.x - p.x, player.position.z - p.z),
         heard,
-        targetSafe: playerPresent && inExitZone({ x: player.position.x, z: player.position.z }),
+        targetSafe: playerPresent && config.isSafe({ x: player.position.x, z: player.position.z }),
       },
       dt,
       cfg,
@@ -221,33 +239,33 @@ export function VillagerNpc() {
 
     // ---- Reactions: barks, audio, run bookkeeping ----
     if (out.entered === 'alerted') {
-      useRunStore.getState().recordDetection(runtime.simTime, NPC_ID);
+      config.onAlerted?.(runtime);
       audio.play('alert', { at: npcPos });
       audio.play('shout', { at: npcPos });
     } else if (out.entered === 'suspicious' || out.entered === 'investigating') {
       audio.play('suspicious', { at: npcPos });
     }
     if (out.bark && runtime.simTime - sim.lastBarkAt > 1.2) {
-      const lines = MOJNU_BARKS[out.bark];
+      const lines = config.barks[out.bark];
       const dPlayer = Math.hypot(player.position.x - p.x, player.position.z - p.z);
-      if (dPlayer < 26) say(lines[Math.floor(runtime.simTime * 7) % lines.length] ?? lines[0]!, MOJNU_NAME);
+      if (dPlayer < 26) say(lines[Math.floor(runtime.simTime * 7) % lines.length] ?? lines[0]!, config.nameBn);
       sim.lastBarkAt = runtime.simTime;
     }
     if (out.caught) {
       setAction(sim.driver, 'shout');
-      triggerCaught(runtime);
+      config.onCaught(runtime);
       return;
     }
 
     // ---- Locomotion with nav-graph pathfinding ----
-    let speed = NPC_SPEEDS[out.pace];
+    let speed = out.pace === 'run' && config.runSpeed !== undefined ? config.runSpeed : NPC_SPEEDS[out.pace];
     let dirX = 0;
     let dirZ = 0;
     if (out.target && speed > 0) {
       sim.repathTimer -= dt;
       const targetMoved = !sim.pathTarget || Math.hypot(sim.pathTarget.x - out.target.x, sim.pathTarget.z - out.target.z) > 1;
       if (targetMoved || sim.repathTimer <= 0 || sim.path.length === 0) {
-        sim.path = VILLAGE_NAV.findPath(npcPos, out.target);
+        sim.path = config.nav.findPath(npcPos, out.target);
         sim.pathTarget = { ...out.target };
         sim.repathTimer = 0.5;
       }
@@ -313,13 +331,13 @@ export function VillagerNpc() {
     }
   });
 
-  const start = VILLAGER_ROUTE[0] as XZ;
+  const start = config.route[0] as XZ;
   return (
     <>
-      <RigidBody ref={bodyRef} name="npc-mojnu" type="kinematicPosition" colliders={false} position={[start.x, 0.05, start.z]} enabledRotations={[false, false, false]}>
+      <RigidBody ref={bodyRef} name={`npc-${config.id}`} type="kinematicPosition" colliders={false} position={[start.x, 0.05, start.z]} enabledRotations={[false, false, false]}>
         <CapsuleCollider ref={colliderRef} name={NPC_COLLIDER} args={[0.45, 0.35]} position={[0, 0.8, 0]} />
         <group ref={visualRef}>
-          <HumanRig driver={sim.driver} look={MOJNU_LOOK} />
+          <HumanRig driver={sim.driver} look={config.look} />
         </group>
         <sprite ref={iconRef} position={[0, 2.35, 0]} material={visuals.question} visible={false} renderOrder={10} />
         <mesh ref={coneRef} geometry={visuals.cone} material={visuals.coneCalm} position={[0, 0.06, 0]} renderOrder={2} />

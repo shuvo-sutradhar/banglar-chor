@@ -76,7 +76,7 @@ export function triggerCaught(rt: GameRuntime, outcome: 'caught' | 'dawn-caught'
   rt.player.faceHeading = null;
   setAction(rt.player, 'caught');
   useRunStore.getState().setCaughtBy(outcome === 'dawn-caught' ? 'dawn' : by);
-  useRunStore.getState().resolve(outcome, rt.simTime);
+  useRunStore.getState().resolve(outcome, rt.simTime, outcome === 'dawn-caught' ? 'dawn' : by);
   useRunStore.getState().setRahimGrabIn(null);
   audio.play('caught');
   app.goTo('caught');

@@ -6,7 +6,8 @@ import { clamp, damp, dampAngle } from '../../lib/math';
 import { useAppStore } from '../../state/useAppStore';
 import { useHudStore } from '../../state/useHudStore';
 import { useGameRuntime } from '../GameRuntime';
-import { makeCameraRayFilter, makeSightRayFilter } from '../physics/queries';
+import { makeCameraRayFilter, makeInteriorCameraRayFilter, makeSightRayFilter } from '../physics/queries';
+import { CUTOUT, CUTOUT_PRESETS, disableCutout } from '../effects/cameraCutout';
 import { CAMERA_PRESETS, CAMERA_TUNING, MINIGAME_CAMERA_YAW, PLAYER_SPAWN } from '../data/tuning';
 
 const MENU_CENTER = new Vector3(0, 1.5, 4);
@@ -20,6 +21,7 @@ export function MenuCamera() {
     const reduced = useAppStore.getState().settings.reducedMotion;
     angle.current += dt * (reduced ? 0.012 : 0.035);
     const a = angle.current;
+    disableCutout();
     camera.position.set(MENU_CENTER.x + Math.sin(a) * 30, 12 + Math.sin(a * 0.7) * 1.5, MENU_CENTER.z + Math.cos(a) * 30);
     camera.lookAt(MENU_CENTER);
   });
@@ -44,6 +46,9 @@ export function ThirdPersonCamera() {
   // In close-quarters modes (minigame, interior, catch) thin props also push the camera in,
   // so a trunk or post never fills the view.
   const blocksCameraClose = useMemo(() => makeSightRayFilter(colliderStates), [colliderStates]);
+  // Indoors the house shell is cut away visually (camera cutout) instead of shoving the camera
+  // into the thief's back (the "jammed at 0.7 m" frames found by the visual tour).
+  const blocksCameraInside = useMemo(() => makeInteriorCameraRayFilter(colliderStates), [colliderStates]);
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const fillRef = useRef<PointLight>(null);
 
@@ -89,7 +94,7 @@ export function ThirdPersonCamera() {
 
     // Camera mode follows the game phase.
     const phase = app.phase;
-    const mode = phase === 'entry' ? 'minigame' : phase === 'caught' ? 'caught' : phase === 'chase' ? 'chase' : 'follow';
+    const mode = phase === 'entry' ? 'minigame' : phase === 'caught' ? 'caught' : phase === 'chase' ? 'chase' : phase === 'bargain' ? 'conversation' : 'follow';
     cam.mode = mode;
     runtime.input.consumeLook(state.look);
     if (mode === 'follow' || mode === 'chase') {
@@ -101,6 +106,9 @@ export function ThirdPersonCamera() {
     if (mode === 'minigame') {
       cam.yaw = dampAngle(cam.yaw, MINIGAME_CAMERA_YAW, 3, dt);
       cam.pitch = damp(cam.pitch, CAMERA_PRESETS.minigame.defaultPitch, 3, dt);
+    } else if (mode === 'conversation' && cam.focusYaw !== null) {
+      cam.yaw = dampAngle(cam.yaw, cam.focusYaw, 3, dt);
+      cam.pitch = damp(cam.pitch, CAMERA_PRESETS.conversation.defaultPitch, 3, dt);
     } else if (mode === 'caught') {
       cam.yaw += dt * (settings.reducedMotion ? 0.08 : 0.35);
       cam.pitch = damp(cam.pitch, CAMERA_PRESETS.caught.defaultPitch, 3, dt);
@@ -146,7 +154,8 @@ export function ThirdPersonCamera() {
     state.ray.dir.x = state.offsetDir.x;
     state.ray.dir.y = state.offsetDir.y;
     state.ray.dir.z = state.offsetDir.z;
-    const hit = world.castRay(state.ray, state.distance, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined, presetId === 'exploration' || presetId === 'chase' ? blocksCamera : blocksCameraClose);
+    const filter = presetId === 'exploration' || presetId === 'chase' ? blocksCamera : presetId === 'interior' ? blocksCameraInside : blocksCameraClose;
+    const hit = world.castRay(state.ray, state.distance, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined, filter);
     const allowed = hit ? Math.max(CAMERA_TUNING.minDistance, hit.timeOfImpact - CAMERA_TUNING.occlusionPadding) : state.distance;
     if (allowed < state.currentDistance) state.currentDistance = allowed;
     else state.currentDistance = damp(state.currentDistance, allowed, CAMERA_TUNING.occlusionRelease, dt);
@@ -164,12 +173,23 @@ export function ThirdPersonCamera() {
       state.blendedLook.lerpVectors(state.introFromLook, origin, s);
       camera.lookAt(state.blendedLook);
       placeFill();
+      updateCutout(presetId);
       return;
     }
     camera.position.copy(state.desired);
     camera.lookAt(origin);
     placeFill();
+    updateCutout(presetId);
   });
+
+  function updateCutout(presetId: string) {
+    const c = presetId === 'interior' ? CUTOUT_PRESETS.interior : presetId === 'minigame' || presetId === 'caught' || presetId === 'conversation' ? CUTOUT_PRESETS.close : CUTOUT_PRESETS.default;
+    CUTOUT.target.value.copy(state.smoothedTarget);
+    const dist = Math.max(0.01, camera.position.distanceTo(state.smoothedTarget));
+    CUTOUT.radius.value = c.radius;
+    CUTOUT.near.value = c.near;
+    CUTOUT.end.value = Math.max(0, Math.min(0.95, 1 - c.stopShort / dist));
+  }
 
   // Soft moon-tinted fill between camera and player so the avatar never becomes an unreadable
   // silhouette against lanterns (README §5: always let players see their avatar).
@@ -180,5 +200,5 @@ export function ThirdPersonCamera() {
     fill.position.y += 0.8;
   }
 
-  return <pointLight ref={fillRef} color="#c9d6ff" intensity={3.2} distance={6} decay={2} />;
+  return <pointLight ref={fillRef} color="#c9d6ff" intensity={4.2} distance={6.5} decay={2} />;
 }

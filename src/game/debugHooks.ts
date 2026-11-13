@@ -5,6 +5,11 @@
 export type DebugHooks = {
   prep?: () => { stage: string; msUntilSweetSpot: number; idealHoldMs: number };
   entry?: () => { msUntilNextBeat: number; time: number; progress: number; noise: number; status: string; hintVisible: boolean };
+  persuade?: () => { msUntilSweet: number; speed: number };
+  trade?: () => { phase: string; offer: number; reservation: number; countersLeft: number; patience: number; suspicion: number; examining: boolean; item: string | null };
+  dawn?: () => { progress: number };
+  /** Thief GLB animation controller state (clip playing, playback rate, cross-fade weight). */
+  anim?: () => { clip: string | null; timeScale: number; weight: number; clips: number };
 };
 
 export const debugHooks: DebugHooks = {};

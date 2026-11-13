@@ -18,7 +18,15 @@ npm test             # Vitest unit tests (deterministic game logic)
 npm run check        # typecheck + lint + unit tests
 npm run smoke        # Phase 1 regression in a real browser (movement/camera/collision/pause/touch)
 npm run smoke:phase2 # Phase 2 gameplay in a real browser (prep → entry → loot → NPC chase/catch → resolution)
-                     # both need `npm run build && npm run preview` running first
+npm run smoke:phase3 # Phase 3 full loop with NPCs (night → dawn → bazaar → bargaining → results)
+npm run smoke:phase3-outcomes # alternative endings + replay
+npm run smoke:phase3-touch    # emulated phone: touch bargaining + market catch
+npm run smoke:premium         # thief GLB in game: clips follow gameplay, toggle, missing-file fallback
+npm run tour -- <url> <dir> [--mobile]   # walks the real route, saves comparable screenshots + draw calls
+npm run assets:placeholder    # regenerate + optimise + validate the placeholder thief GLB
+npm run validate:glb -- <file.glb>       # check any character GLB against docs/BLENDER_CHARACTER_SPEC.md
+npm run shoot:glb -- <devUrl> <dir>      # render every clip of the GLB (needs npm run dev)
+                     # all smoke tests need `npm run build && npm run preview` running first
 ```
 `npm run smoke` uses `playwright-core` with a locally installed **Edge or Chrome** (no browser download). Optional arguments: `node tests/smoke/smoke.mjs <baseUrl> <screenshotDir>`.
 
@@ -26,7 +34,7 @@ npm run smoke:phase2 # Phase 2 gameplay in a real browser (prep → entry → lo
 `npm run dev` binds to all interfaces. Open `http://<your-PC-LAN-IP>:5173` on a phone on the same Wi-Fi. Windows may ask to allow Node through the firewall.
 
 ### Debug hook
-Append `?debug=1` (always on in `npm run dev`) to expose `window.__sidhel.snapshot()` (player, camera, HUD, NPCs, run inventory/items, prep/entry timing). `?debug=1&nonpc=1` removes the patrolling villager for deterministic tests (Rahim stays).
+Append `?debug=1` (always on in `npm run dev`) to expose `window.__sidhel.snapshot()` (player, camera, HUD, NPCs, run inventory/items, prep/entry timing). `?debug=1&nonpc=1` removes the patrolling villager for deterministic tests (Rahim stays). `&seed=N` pins the run seed. Test-only helpers: `window.__sidhel.advanceClock(seconds)` and `setCameraYaw`.
 
 ## Player controls
 

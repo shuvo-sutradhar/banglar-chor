@@ -20,11 +20,12 @@ const TITLES = {
  */
 export function NightResolution() {
   const run = useRunStore((s) => s.run);
-  const startRun = useAppStore((s) => s.startRun);
-  const returnToMenu = useAppStore((s) => s.returnToMenu);
+  const startDawn = useAppStore((s) => s.startDawn);
+  const showResults = useAppStore((s) => s.showResults);
   const summary = useMemo(() => (run ? computeNightSummary(run) : null), [run]);
   if (!run || !summary) return null;
   const info = TITLES[summary.outcome];
+  const marketable = summary.outcome === 'escaped-with-loot' && run.inventory.length > 0;
   const caught = summary.outcome === 'caught' || summary.outcome === 'dawn-caught';
   const items = caught ? summary.confiscatedItems : summary.escapedItems;
   const rows: [string, number][] = [
@@ -84,23 +85,27 @@ export function NightResolution() {
           {!caught && summary.escapedItems.length > 0 && ` · আনুমানিক মালের দাম ${formatTaka(summary.escapedItems.reduce((s, i) => s + LOOT[i.lootId].baseValue, 0))}`}
         </p>
         <p className="mb-4 rounded-xl bg-white/5 p-2 text-xs leading-relaxed text-moon">
-          প্রোটোটাইপ ধাপ ২: ভোরের বাজারে মাল বেচা পরের ধাপে আসছে, তাই রাতের হিসাব এখানেই শেষ। স্কোর এখনো সংরক্ষণ হয় না।
+          {marketable ? 'রাতের হিসাব এটুকুই — চূড়ান্ত স্কোর হবে হাটে বেচাকেনার পরে।' : 'এই রাতে বেচার মতো কিছু নাই, তাই সরাসরি চূড়ান্ত হিসাব।'}
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            className="btn btn-primary flex-1"
-            onClick={() => {
-              audio.unlock();
-              startRun();
-            }}
-            data-testid="play-again"
-          >
-            আবার খেলি
-          </button>
-          <button type="button" className="btn btn-ghost flex-1" onClick={returnToMenu}>
-            মূল মেনু
-          </button>
+          {marketable ? (
+            <button
+              type="button"
+              className="btn btn-primary flex-1"
+              onClick={() => {
+                audio.unlock();
+                startDawn();
+              }}
+              data-testid="to-dawn"
+              autoFocus
+            >
+              ভোরের হাটে চলো ›
+            </button>
+          ) : (
+            <button type="button" className="btn btn-primary flex-1" onClick={showResults} data-testid="to-results" autoFocus>
+              চূড়ান্ত হিসাব দেখো ›
+            </button>
+          )}
         </div>
       </div>
     </div>

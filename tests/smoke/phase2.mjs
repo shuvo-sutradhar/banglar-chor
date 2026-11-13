@@ -62,9 +62,12 @@ async function runA(browser) {
   await walkPath(page, ROUTE_TO_BACK_WALL, { run: true, timeout: 25000 });
   s = await snap(page);
   check('entry: walked physically to the back wall of Rahim\'s house', Math.hypot(s.player.x + 15.4, s.player.z - 6) < 1.0, `x=${s.player.x.toFixed(2)} z=${s.player.z.toFixed(2)}`);
+  // A sprint with tolerance 0.8 can stop half a metre off the wall line; settle onto it at walking pace.
+  await walkPath(page, [[-15.4, 6]], { tol: 0.3, timeout: 8000 });
   await face(page, -14.6, 6);
   await page.waitForFunction(() => window.__sidhel.snapshot().hud.focus === 'rahim-sidh', null, { timeout: 5000 }).catch(() => {});
   s = await snap(page);
+  if (s.hud.focus !== 'rahim-sidh') console.log(`info  sidh focus missing at (${s.player.x.toFixed(2)}, ${s.player.z.toFixed(2)}), focus ${s.hud.focus}`);
   check('entry: sidh interaction available only when close (focused here)', s.hud.focus === 'rahim-sidh', String(s.hud.focus));
 
   // Attempt 1: bad timing → failure, real noise event, cooldown.
@@ -180,7 +183,12 @@ async function runA(browser) {
   check('run A: no console/page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 
   // RUN C (same browser profile → skip available): Rahim wakes and grabs a thief who lingers.
-  await page.getByTestId('play-again').click();
+  // Since Phase 3 an escape with loot continues to the dawn bazaar (no direct replay button), so
+  // start a new session from the menu instead.
+  await page.goto(`${BASE}/?debug=1&nonpc=1`);
+  await page.getByTestId('start-button').waitFor();
+  await page.waitForFunction(() => !document.querySelector('[data-testid=start-button]')?.hasAttribute('disabled'), null, { timeout: 60000 });
+  await page.getByTestId('start-button').click();
   await page.getByTestId('prep-overlay').waitFor();
   check('prep: skip option appears after the first completed preparation', await page.getByTestId('prep-skip').isVisible());
   await page.goto(`${BASE}/?debug=1&nonpc=1`);

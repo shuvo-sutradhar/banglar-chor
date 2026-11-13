@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, ShaderMaterial, Vector3, type DirectionalLight, type Object3D } from 'three';
-import { useFrame } from '@react-three/fiber';
+import {
+  AdditiveBlending,
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  Fog,
+  ShaderMaterial,
+  Vector3,
+  type AmbientLight,
+  type DirectionalLight,
+  type Group,
+  type HemisphereLight,
+  type Object3D,
+} from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import { createRng } from '../../lib/rng';
 import { useAppStore } from '../../state/useAppStore';
@@ -8,6 +21,7 @@ import { useGameRuntime } from '../GameRuntime';
 import { WORLD_BOUNDS } from '../data/tuning';
 import { PALETTE } from '../world/materials';
 import type { QualityProfile } from '../../state/settings';
+import { daylight, keyLightColorAt, keyLightDirAt, skyColorAt } from './daylight';
 
 const MOON_DIRECTION = new Vector3(-0.45, 0.8, -0.4).normalize();
 
@@ -74,23 +88,40 @@ function Fireflies({ count }: { count: number }) {
   return <points geometry={geometry} material={material} frustumCulled={false} />;
 }
 
+const HEMI_NIGHT_SKY = new Color('#5a6ea2');
+const HEMI_DAY_SKY = new Color('#c4ddf2');
+const HEMI_NIGHT_GROUND = new Color('#2c3625');
+const HEMI_DAY_GROUND = new Color('#6b5a3a');
+const AMB_NIGHT = new Color('#2a3557');
+const AMB_DAY = new Color('#fff1dc');
+
 /**
- * Night lighting: sky hemisphere + moon directional light (single shadow caster whose
- * frustum follows the player) + a visible moon disc. Lantern point lights live on houses.
+ * Sky + lighting for night AND morning, blended by `daylight.factor` (0 night → 1 morning):
+ * hemisphere/ambient fill, one key directional light (moon → rising sun; the only shadow caster,
+ * frustum follows the player), moon/sun discs, stars and fireflies that fade with the dawn.
  */
 export function NightAtmosphere({ quality }: { quality: QualityProfile }) {
   const runtime = useGameRuntime();
-  const moonRef = useRef<DirectionalLight>(null);
+  const keyRef = useRef<DirectionalLight>(null);
+  const hemiRef = useRef<HemisphereLight>(null);
+  const ambRef = useRef<AmbientLight>(null);
   const targetRef = useRef<Object3D>(null);
+  const moonRef = useRef<Group>(null);
+  const sunRef = useRef<Group>(null);
+  const starsRef = useRef<Group>(null);
+  const firefliesRef = useRef<Group>(null);
+  const scene = useThree((s) => s.scene);
+  const gl = useThree((s) => s.gl);
+  const tmp = useMemo(() => ({ c: new Color(), dir: new Vector3() }), []);
 
   useEffect(() => {
-    const light = moonRef.current;
+    const light = keyRef.current;
     const target = targetRef.current;
     if (light && target) light.target = target;
   }, []);
 
   useEffect(() => {
-    const light = moonRef.current;
+    const light = keyRef.current;
     if (!light) return;
     light.shadow.mapSize.set(quality.shadowMapSize, quality.shadowMapSize);
     light.shadow.map?.dispose();
@@ -98,22 +129,54 @@ export function NightAtmosphere({ quality }: { quality: QualityProfile }) {
   }, [quality.shadowMapSize]);
 
   useFrame(() => {
-    const light = moonRef.current;
+    const t = Math.min(1, Math.max(0, daylight.factor));
+    const light = keyRef.current;
     const target = targetRef.current;
     if (!light || !target) return;
-    // Keep the shadow frustum centred on the player (or village centre on the menu).
     const focus = runtime.player.body ? runtime.player.position : null;
     const fx = focus ? focus.x : 0;
     const fz = focus ? focus.z : 4;
+    keyLightDirAt(t, tmp.dir);
     target.position.set(fx, 0, fz);
-    light.position.set(fx + MOON_DIRECTION.x * 30, MOON_DIRECTION.y * 30, fz + MOON_DIRECTION.z * 30);
+    light.position.set(fx + tmp.dir.x * 30, tmp.dir.y * 30, fz + tmp.dir.z * 30);
+    keyLightColorAt(t, light.color);
+    light.intensity = 1.85 + 0.95 * t;
+    // Night needs a touch more exposure to stay readable; morning is metered normally.
+    gl.toneMappingExposure = 1.12 - 0.12 * t;
+
+    skyColorAt(t, tmp.c);
+    if (scene.background instanceof Color) scene.background.copy(tmp.c);
+    if (scene.fog instanceof Fog) {
+      scene.fog.color.copy(tmp.c);
+      scene.fog.near = 14 + 16 * t;
+      scene.fog.far = quality.fogFar * (1 + 0.6 * t);
+    }
+    const hemi = hemiRef.current;
+    if (hemi) {
+      hemi.color.copy(HEMI_NIGHT_SKY).lerp(HEMI_DAY_SKY, t);
+      hemi.groundColor.copy(HEMI_NIGHT_GROUND).lerp(HEMI_DAY_GROUND, t);
+      hemi.intensity = 1.35 + 0.15 * t;
+    }
+    const amb = ambRef.current;
+    if (amb) {
+      amb.color.copy(AMB_NIGHT).lerp(AMB_DAY, t);
+      amb.intensity = 0.42 + 0.08 * t;
+    }
+    if (moonRef.current) moonRef.current.visible = t < 0.55;
+    if (starsRef.current) starsRef.current.visible = t < 0.3;
+    if (firefliesRef.current) firefliesRef.current.visible = t < 0.2;
+    if (sunRef.current) {
+      sunRef.current.visible = t > 0.12;
+      sunRef.current.position.set(tmp.dir.x * 150, tmp.dir.y * 150, tmp.dir.z * 150);
+    }
   });
+
   return (
     <>
-      <hemisphereLight args={['#4b5f8f', '#1f2a1a', 1.15]} />
-      <ambientLight color="#2a3557" intensity={0.35} />
+      <hemisphereLight ref={hemiRef} args={['#4b5f8f', '#1f2a1a', 1.15]} />
+      <ambientLight ref={ambRef} color="#2a3557" intensity={0.35} />
       <directionalLight
-        ref={moonRef}
+        ref={keyRef}
         color={PALETTE.moonlight}
         intensity={1.5}
         castShadow={quality.shadows}
@@ -127,8 +190,7 @@ export function NightAtmosphere({ quality }: { quality: QualityProfile }) {
         shadow-camera-far={80}
       />
       <object3D ref={targetRef} />
-      {/* Moon disc + soft halo, placed far along the light direction and excluded from fog. */}
-      <group position={[MOON_DIRECTION.x * 150, MOON_DIRECTION.y * 150, MOON_DIRECTION.z * 150]}>
+      <group ref={moonRef} position={[MOON_DIRECTION.x * 150, MOON_DIRECTION.y * 150, MOON_DIRECTION.z * 150]}>
         <mesh>
           <sphereGeometry args={[6, 20, 14]} />
           <meshBasicMaterial color="#eef2ff" fog={false} />
@@ -138,8 +200,20 @@ export function NightAtmosphere({ quality }: { quality: QualityProfile }) {
           <meshBasicMaterial color="#a6b9d8" transparent opacity={0.12} fog={false} depthWrite={false} />
         </mesh>
       </group>
-      <Stars radius={170} depth={30} count={quality.stars} factor={4} saturation={0} fade speed={0.3} />
-      {quality.fireflies > 0 && <Fireflies count={quality.fireflies} />}
+      <group ref={sunRef} visible={false}>
+        <mesh>
+          <sphereGeometry args={[7, 20, 14]} />
+          <meshBasicMaterial color="#fff0c8" fog={false} />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[14, 20, 14]} />
+          <meshBasicMaterial color="#ffc27a" transparent opacity={0.18} fog={false} depthWrite={false} />
+        </mesh>
+      </group>
+      <group ref={starsRef}>
+        <Stars radius={170} depth={30} count={quality.stars} factor={4} saturation={0} fade speed={0.3} />
+      </group>
+      <group ref={firefliesRef}>{quality.fireflies > 0 && <Fireflies count={quality.fireflies} />}</group>
     </>
   );
 }

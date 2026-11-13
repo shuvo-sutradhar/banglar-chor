@@ -66,8 +66,8 @@ function Interior() {
   return (
     <>
       <mesh geometry={PLANE} material={mat('courtyard')} position={[0, 0.305, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[5.5, 4.0, 1]} receiveShadow />
-      {/* Ceiling (thatch underside) keeps the camera inside and hides the roof cone. */}
-      <Block size={[5.6, 0.06, 4.1]} position={[0, 2.58, 0]} material={mat('thatch')} collider castShadow={false} />
+      {/* Ceiling (thatch underside): hides the roof cone; the indoor camera ignores it (cutaway view). */}
+      <Block size={[5.6, 0.06, 4.1]} position={[0, 2.58, 0]} material={mat('thatch')} collider shell castShadow={false} />
       {/* Inner door and window shutters */}
       <Block size={[1.0, 1.75, 0.04]} position={[0, 1.18, 1.99]} material={mat('woodDark')} castShadow={false} />
       {[-1.8, 1.8].map((x) => (
@@ -127,17 +127,17 @@ export function RahimHouse() {
       <VerandaRamp edgeZ={3.8} width={7} height={0.3} material={mat('plinth')} />
 
       {/* Hollow walls */}
-      <Block size={[6, 2.3, 0.25]} position={[0, 1.45, 2.125]} material={mat('mud')} collider />
-      <Block size={[0.25, 2.3, 4.25]} position={[-2.875, 1.45, 0]} material={mat('mud')} collider />
-      <Block size={[0.25, 2.3, 4.25]} position={[2.875, 1.45, 0]} material={mat('mud')} collider />
-      <Block size={[sideW, 2.3, 0.25]} position={[-(H.halfWidth + sideW / 2), 1.45, -2.125]} material={mat('mud')} collider />
-      <Block size={[sideW, 2.3, 0.25]} position={[H.halfWidth + sideW / 2, 1.45, -2.125]} material={mat('mud')} collider />
-      <Block size={[H.halfWidth * 2, 2.6 - H.top, 0.25]} position={[0, (2.6 + H.top) / 2, -2.125]} material={mat('mud')} collider />
+      <Block size={[6, 2.3, 0.25]} position={[0, 1.45, 2.125]} material={mat('mud')} collider shell />
+      <Block size={[0.25, 2.3, 4.25]} position={[-2.875, 1.45, 0]} material={mat('mud')} collider shell />
+      <Block size={[0.25, 2.3, 4.25]} position={[2.875, 1.45, 0]} material={mat('mud')} collider shell />
+      <Block size={[sideW, 2.3, 0.25]} position={[-(H.halfWidth + sideW / 2), 1.45, -2.125]} material={mat('mud')} collider shell />
+      <Block size={[sideW, 2.3, 0.25]} position={[H.halfWidth + sideW / 2, 1.45, -2.125]} material={mat('mud')} collider shell />
+      <Block size={[H.halfWidth * 2, 2.6 - H.top, 0.25]} position={[0, (2.6 + H.top) / 2, -2.125]} material={mat('mud')} collider shell />
       {holeOpen ? (
         <HoleRubble />
       ) : (
         <>
-          <Block size={[H.halfWidth * 2, holeH, 0.25]} position={[0, H.bottom + holeH / 2, -2.125]} material={mat('mud')} collider />
+          <Block size={[H.halfWidth * 2, holeH, 0.25]} position={[0, H.bottom + holeH / 2, -2.125]} material={mat('mud')} collider shell />
           <DigMark />
         </>
       )}

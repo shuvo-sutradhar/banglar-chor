@@ -214,3 +214,85 @@ export async function playEntryBadly(page, cdp) {
     await wait(200);
   }
 }
+
+// ---------------- Phase 3: bazaar helpers ----------------
+export const MERCHANT_FRONT = { hashem: [-11.0, -2], jalil: [11.0, -2], bokul: [-6, -12.5] };
+export const MERCHANT_SPOT = { hashem: [-14.4, -2], jalil: [14.4, -2], bokul: [-6, -15.9] };
+/** Lanes from the entrance to each stall (clear of the banyan and stalls). */
+export const BAZAAR_PATHS = {
+  jalil: [[0, 12], [7.5, 7], [11.0, -2]],
+  hashem: [[0, 12], [-7.5, 7], [-11.0, -2]],
+  bokul: [[-8, -8], [-6, -12.5]],
+};
+
+export async function talkTo(page, id, via) {
+  await walkPath(page, via ?? BAZAAR_PATHS[id], { timeout: 15000 });
+  await face(page, MERCHANT_SPOT[id][0], MERCHANT_SPOT[id][1]);
+  const ok = await page
+    .waitForFunction((m) => window.__sidhel.snapshot().hud.focus === `merchant:${m}`, id, { timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!ok) return false;
+  await page.keyboard.press('KeyE');
+  return page
+    .getByTestId('trade-panel')
+    .waitFor({ timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+}
+
+export async function chooseItem(page, lootId) {
+  await page.locator(`[data-testid=trade-item][data-loot="${lootId}"]`).first().click();
+  await page.waitForFunction(() => { const t = window.__sidhel.snapshot().trade; return t && t.phase !== 'choose' && !t.examining; }, null, { timeout: 8000 });
+  await wait(300);
+}
+
+/** Play the persuasion beat: 'perfect' presses on the sweet spot, 'miss' at the needle's extreme. */
+export async function persuade(page, cdp, quality) {
+  await page.getByTestId('persuasion-meter').waitFor({ timeout: 4000 });
+  await wait(150);
+  await spaceAt(page, cdp, (q) => {
+    const s = window.__sidhel.snapshot().persuade;
+    const half = 500 / s.speed; // sweet spots repeat every half cycle
+    let ms = s.msUntilSweet;
+    if (ms < 200) ms += half;
+    if (q === 'miss') ms += half / 2; // the needle's extreme, far outside every zone
+    return { ms, epoch: performance.timeOrigin + performance.now() + ms };
+  }, quality);
+  await page.getByTestId('persuasion-meter').waitFor({ state: 'detached', timeout: 4000 }).catch(() => {});
+  await wait(700);
+}
+
+/**
+ * Pick a specific room item: approach from the room centre, and press E only once THAT item has
+ * focus (nudging closer if a neighbour on the shelf is focused instead). Crouch first for stealth.
+ */
+export async function pickItem(page, it) {
+  const dx = -12 - it.x;
+  const dz = 6 - it.z;
+  const d = Math.hypot(dx, dz) || 1;
+  for (const dist of [0.75, 0.55, 0.9, 0.45]) {
+    // Approach straight along the line to the item so the final heading points at it (a short
+    // `face()` tap may not produce a physics step at headless frame rates).
+    const far = Math.min(1.5, d - 0.2);
+    await walkPath(page, [[it.x + (dx / d) * far, it.z + (dz / d) * far], [it.x + (dx / d) * dist, it.z + (dz / d) * dist]], { tol: 0.3, timeout: 9000 });
+    await face(page, it.x, it.z);
+    const ok = await page
+      .waitForFunction((id) => window.__sidhel.snapshot().hud.focus === id, `item:${it.id}`, { timeout: 2500 })
+      .then(() => true)
+      .catch(() => false);
+    if (!ok) {
+      const d0 = await snap(page);
+      console.log(`info  pick ${it.lootId} @${dist}: no focus (phase ${d0.app.phase}, player ${d0.player?.x.toFixed(2)},${d0.player?.z.toFixed(2)}, focus ${d0.hud.focus}, script ${d0.script})`);
+      continue;
+    }
+    await page.keyboard.press('KeyE');
+    await page
+      .waitForFunction((id) => window.__sidhel.snapshot().run.inventoryIds.includes(id), it.id, { timeout: 2000 })
+      .catch(() => {});
+    const s = await snap(page);
+    if (s.run.inventoryIds.includes(it.id)) return true;
+    console.log(`info  pick ${it.lootId}: E pressed with focus but not picked (phase ${s.app.phase}, caption ${s.hud.caption})`);
+  }
+  return false;
+}

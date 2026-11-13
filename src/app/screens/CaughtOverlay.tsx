@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../../state/useAppStore';
 import { useRunStore } from '../../state/useRunStore';
 import { CATCH_LINES, MOJNU_NAME, RAHIM_NAME, THIEF_NAME } from '../../game/data/dialogue';
+import { MARKET_CATCH_LINES, WATCHMAN_NAME } from '../../game/data/marketDialogue';
 
 type Line = { at: number; speaker: string; text: string };
 
@@ -11,6 +12,9 @@ const DURATION = 6.4;
 /** Timed overlapping subtitles for the 3D catch vignette; skippable after a moment. */
 export function CaughtOverlay() {
   const goTo = useAppStore((s) => s.goTo);
+  const zone = useAppStore((s) => s.zone);
+  const showResults = useAppStore((s) => s.showResults);
+  const finish = useMemo(() => (zone === 'bazaar' ? showResults : () => goTo('night-resolution')), [zone, showResults, goTo]);
   const rough = useAppStore((s) => s.settings.roughDialogue);
   const run = useRunStore((s) => s.run);
   const caughtBy = useRunStore((s) => s.caughtBy);
@@ -23,6 +27,14 @@ export function CaughtOverlay() {
     const special = (['actual-jewelry', 'dentures', 'chicken', 'old-radio', 'alarm-clock'] as const).find((id) => items.includes(id));
     const punch = items.length === 0 ? p.empty : special ? p[special] : p.other[(run?.seed ?? 0) % p.other.length]!;
     const dawn = run?.outcome === 'dawn-caught';
+    if (zone === 'bazaar') {
+      return [
+        { at: 0.1, speaker: WATCHMAN_NAME, text: MARKET_CATCH_LINES.watchman },
+        { at: 1.3, speaker: 'হাটের লোকজন', text: MARKET_CATCH_LINES.crowd },
+        { at: 2.6, speaker: THIEF_NAME, text: MARKET_CATCH_LINES.thief },
+        { at: 4.0, speaker: WATCHMAN_NAME, text: 'মাল সব বাজেয়াপ্ত, অর্ধেক টাকা জরিমানা! যা, ভাগ!' },
+      ];
+    }
     return [
       dawn
         ? { at: 0.1, speaker: 'গ্রামবাসী', text: 'ভোর হয়ে গেছে — চোর এখনো গ্রামে!' }
@@ -34,7 +46,7 @@ export function CaughtOverlay() {
       { at: 3.1, speaker: THIEF_NAME, text: CATCH_LINES.thief },
       { at: 4.3, speaker: caughtBy === 'rahim' ? RAHIM_NAME : MOJNU_NAME, text: punch },
     ];
-  }, [run, rough, caughtBy]);
+  }, [run, rough, caughtBy, zone]);
 
   useEffect(() => {
     let raf = 0;
@@ -49,14 +61,14 @@ export function CaughtOverlay() {
       setShown((c) => (c === count ? c : count));
       if (acc >= SKIP_AFTER) setSkippable(true);
       if (acc >= DURATION) {
-        if (useAppStore.getState().phase === 'caught') goTo('night-resolution');
+        if (useAppStore.getState().phase === 'caught') finish();
         return;
       }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [goTo, lines]);
+  }, [finish, lines]);
 
   const visible = lines.slice(0, shown).slice(-3);
   return (
@@ -72,7 +84,7 @@ export function CaughtOverlay() {
           </div>
         ))}
         {skippable && (
-          <button type="button" className="btn btn-primary pointer-events-auto mt-2" onClick={() => goTo('night-resolution')} data-testid="caught-skip">
+          <button type="button" className="btn btn-primary pointer-events-auto mt-2" onClick={finish} data-testid="caught-skip">
             এগিয়ে যাও ›
           </button>
         )}

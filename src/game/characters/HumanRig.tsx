@@ -29,6 +29,15 @@ export type Appearance = {
   oilable?: boolean;
   /** Extra object held in the right hand (e.g. a lantern). */
   rightHand?: ReactNode;
+  /** Lower garment length multiplier (saree ≈ 1.55). */
+  skirt?: number;
+  /** Head covering (saree anchal / scarf). */
+  hood?: Material | null;
+  glasses?: boolean;
+  /** Fewer meshes (no face details / hands) for background characters — keeps draw calls low. */
+  lowDetail?: boolean;
+  /** Show a sack on the back when `driver.carry` > 0 (the thief). */
+  sack?: boolean;
 };
 
 type Params = {
@@ -77,6 +86,7 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
   const foreR = useRef<Group>(null);
   const lungi = useRef<Group>(null);
   const headbandRef = useRef<Group>(null);
+  const sackRef = useRef<Group>(null);
 
   const p = useRef<Params>({ hip: 0.84, lean: 0, swing: 0, armSwing: 0, elbowL: 0.15, elbowR: 0.15, armLX: 0, armRX: 0, armLZ: -0.12, armRZ: 0.12, headYaw: 0, headPitch: 0, sideLean: 0, hipDrop: 0, bob: 0 });
   const phase = useRef(0);
@@ -220,6 +230,28 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
       case 'look-around':
         headYaw = s(1.8) * 0.9;
         break;
+      case 'sit':
+        gaitArms = false;
+        hip = 0.47;
+        lean = 0.1;
+        armLX = armRX = -0.6;
+        elbowL = elbowR = 1.3;
+        headYaw = s(0.7) * 0.25;
+        break;
+      case 'examine':
+        gaitArms = false;
+        armLX = armRX = -1.05;
+        armLZ = 0.25;
+        armRZ = -0.25;
+        elbowL = elbowR = 1.25 + s(3) * 0.1;
+        headPitch = 0.4;
+        headYaw = s(1.6) * 0.15;
+        break;
+      case 'wave':
+        armRX = -2.7;
+        armRZ = 0.35 + s(9) * 0.35;
+        elbowR = 0.4;
+        break;
       case 'sit-up':
         gaitArms = false;
         armLX = armRX = -2.9 + s(2) * 0.1;
@@ -272,8 +304,14 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
       head.current.rotation.x = -a.lean * 0.6 + a.headPitch + Math.sin(breath.current * 1.1) * 0.02;
       head.current.rotation.y = a.headYaw;
     }
+    const sitting = driver.action === 'sit';
     const legPose = (thigh: Group | null, shin: Group | null, side: number) => {
       if (!thigh || !shin) return;
+      if (sitting) {
+        thigh.rotation.x = -1.45;
+        shin.rotation.x = 1.45;
+        return;
+      }
       const sw = sp * side * a.swing;
       const lift = Math.max(0, -Math.cos(ph) * side) * a.swing * 1.4;
       thigh.rotation.x = -bend - sw - lift * 0.5;
@@ -298,6 +336,11 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
       lungi.current.position.y = 0.06 * tuck;
     }
     if (headbandRef.current) headbandRef.current.visible = Boolean(look.alwaysHeadband || c?.headband);
+    if (sackRef.current) {
+      const carry = driver.carry ?? 0;
+      sackRef.current.visible = carry > 0.01;
+      sackRef.current.scale.setScalar(0.7 + 0.6 * Math.min(1, carry));
+    }
     if (look.oilable && look.skin instanceof MeshStandardMaterial) {
       const oil = c?.oil ?? 0;
       look.skin.roughness = 0.62 - 0.38 * oil;
@@ -307,6 +350,8 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
 
   const skin = look.skin;
   const torso = look.top ?? skin;
+  const detail = !look.lowDetail;
+  const skirt = look.skirt ?? 1;
   return (
     <group>
       <group ref={pelvis} position={[0, 0.84, 0]}>
@@ -315,23 +360,29 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
           [0.11, thighR, shinR],
         ] as const).map(([x, thighRef, shinRef]) => (
           <group key={x} ref={thighRef} position={[x, 0, 0]}>
-            <mesh geometry={UNIT_CYLINDER} material={skin} position={[0, -THIGH / 2, 0]} scale={[0.13, THIGH, 0.13]} castShadow />
+            <mesh geometry={UNIT_CYLINDER} material={skin} position={[0, -THIGH / 2, 0]} scale={[0.13, THIGH, 0.13]} />
             <group ref={shinRef} position={[0, -THIGH, 0]}>
-              <mesh geometry={UNIT_CYLINDER} material={skin} position={[0, -SHIN / 2, 0]} scale={[0.11, SHIN, 0.11]} castShadow />
-              <mesh geometry={UNIT_BOX} material={mat('black')} position={[0, -SHIN - 0.01, 0.05]} scale={[0.12, 0.04, 0.26]} castShadow />
+              <mesh geometry={UNIT_CYLINDER} material={skin} position={[0, -SHIN / 2, 0]} scale={[0.11, SHIN, 0.11]} />
+              <mesh geometry={UNIT_BOX} material={mat('black')} position={[0, -SHIN - 0.01, 0.05]} scale={[0.12, 0.04, 0.26]} />
             </group>
           </group>
         ))}
 
         <group ref={lungi}>
-          <mesh geometry={UNIT_CYLINDER} material={look.lower} position={[0, -0.2, 0]} scale={[0.5, 0.52, 0.42]} castShadow />
-          <mesh geometry={UNIT_CYLINDER} material={look.lower} position={[0, -0.44, 0]} scale={[0.56, 0.06, 0.48]} />
-          <mesh geometry={UNIT_SPHERE} material={look.lower} position={[0, 0.02, 0.2]} scale={[0.12, 0.08, 0.08]} />
+          <mesh geometry={UNIT_CYLINDER} material={look.lower} position={[0, 0.06 - 0.26 * skirt, 0]} scale={[0.5 + 0.04 * (skirt - 1), 0.52 * skirt, 0.42 + 0.04 * (skirt - 1)]} castShadow />
+          {detail && <mesh geometry={UNIT_CYLINDER} material={look.lower} position={[0, 0.06 - 0.5 * skirt, 0]} scale={[0.56, 0.06, 0.48]} />}
+          {detail && skirt <= 1 && <mesh geometry={UNIT_SPHERE} material={look.lower} position={[0, 0.02, 0.2]} scale={[0.12, 0.08, 0.08]} />}
         </group>
 
         <group ref={spine} position={[0, 0.04, 0]}>
           <mesh geometry={UNIT_CYLINDER} material={torso} position={[0, 0.27, 0]} scale={[0.42, 0.54, 0.32]} castShadow />
-          <mesh geometry={UNIT_SPHERE} material={torso} position={[0, 0.03, 0.02]} scale={[0.42, 0.22, 0.34]} />
+          {detail && <mesh geometry={UNIT_SPHERE} material={torso} position={[0, 0.03, 0.02]} scale={[0.42, 0.22, 0.34]} />}
+          {look.sack && (
+            <group ref={sackRef} position={[0, 0.32, -0.27]} visible={false}>
+              <mesh geometry={UNIT_SPHERE} material={mat('weave')} scale={[0.42, 0.5, 0.3]} />
+              <mesh geometry={UNIT_CYLINDER} material={mat('gamcha')} position={[0, 0.27, 0.02]} scale={[0.16, 0.08, 0.16]} />
+            </group>
+          )}
           {look.neckGamcha && (
             <>
               <mesh geometry={UNIT_CYLINDER} material={look.neckGamcha} position={[0, 0.55, 0]} scale={[0.4, 0.09, 0.32]} />
@@ -345,20 +396,22 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
             <mesh geometry={UNIT_SPHERE} material={skin} position={[0, 0.22, 0]} scale={[0.36, 0.38, 0.36]} castShadow />
             <mesh geometry={UNIT_SPHERE} material={look.hair} position={[0, 0.31, -0.03]} scale={[0.37, 0.24, 0.36]} />
             {look.cap && <mesh geometry={UNIT_CYLINDER} material={look.cap} position={[0, 0.4, -0.01]} scale={[0.33, 0.12, 0.33]} />}
+            {look.hood && <mesh geometry={UNIT_SPHERE} material={look.hood} position={[0, 0.28, -0.04]} scale={[0.42, 0.42, 0.42]} />}
+            {look.glasses && <mesh geometry={UNIT_BOX} material={mat('black')} position={[0, 0.245, 0.175]} scale={[0.26, 0.06, 0.03]} />}
             {look.headband && (
               <group ref={headbandRef} visible={Boolean(look.alwaysHeadband)}>
                 <mesh geometry={UNIT_CYLINDER} material={look.headband} position={[0, 0.29, 0]} scale={[0.39, 0.07, 0.39]} />
                 <mesh geometry={UNIT_BOX} material={look.headband} position={[0, 0.27, -0.21]} rotation={[0.5, 0, 0.3]} scale={[0.06, 0.16, 0.02]} />
               </group>
             )}
-            {[-0.07, 0.07].map((x) => (
+            {detail && [-0.07, 0.07].map((x) => (
               <group key={x} position={[x, 0.24, 0.16]}>
                 <mesh geometry={UNIT_SPHERE} material={mat('white')} scale={[0.07, 0.06, 0.04]} />
                 <mesh geometry={UNIT_SPHERE} material={mat('black')} position={[0, 0, 0.017]} scale={[0.03, 0.035, 0.02]} />
               </group>
             ))}
-            <mesh geometry={UNIT_SPHERE} material={skin} position={[0, 0.18, 0.18]} scale={[0.06, 0.08, 0.07]} />
-            {look.moustache && (
+            {detail && <mesh geometry={UNIT_SPHERE} material={skin} position={[0, 0.18, 0.18]} scale={[0.06, 0.08, 0.07]} />}
+            {detail && look.moustache && (
               <>
                 <mesh geometry={UNIT_BOX} material={look.beard ?? mat('black')} position={[0, 0.12, 0.165]} scale={[0.2, 0.035, 0.04]} />
                 <mesh geometry={UNIT_BOX} material={look.beard ?? mat('black')} position={[0.11, 0.105, 0.16]} rotation={[0, 0, 0.5]} scale={[0.06, 0.03, 0.035]} />
@@ -366,9 +419,8 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
               </>
             )}
             {look.beard && <mesh geometry={UNIT_SPHERE} material={look.beard} position={[0, 0.07, 0.11]} scale={[0.26, 0.2, 0.16]} />}
-            {[-0.18, 0.18].map((x) => (
-              <mesh key={x} geometry={UNIT_SPHERE} material={skin} position={[x, 0.21, 0]} scale={[0.05, 0.09, 0.06]} />
-            ))}
+            {detail &&
+              [-0.18, 0.18].map((x) => <mesh key={x} geometry={UNIT_SPHERE} material={skin} position={[x, 0.21, 0]} scale={[0.05, 0.09, 0.06]} />)}
           </group>
 
           {([
@@ -376,11 +428,11 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
             [0.25, armR, foreR, true],
           ] as const).map(([x, armRef, foreRef, right]) => (
             <group key={x} ref={armRef} position={[x, 0.48, 0]}>
-              <mesh geometry={UNIT_SPHERE} material={torso} scale={[0.15, 0.14, 0.15]} />
-              <mesh geometry={UNIT_CYLINDER} material={look.top ?? skin} position={[0, -0.15, 0]} scale={[0.1, 0.3, 0.1]} castShadow />
+              {detail && <mesh geometry={UNIT_SPHERE} material={torso} scale={[0.15, 0.14, 0.15]} />}
+              <mesh geometry={UNIT_CYLINDER} material={look.top ?? skin} position={[0, -0.15, 0]} scale={[0.1, 0.3, 0.1]} />
               <group ref={foreRef} position={[0, -0.3, 0]}>
-                <mesh geometry={UNIT_CYLINDER} material={skin} position={[0, -0.13, 0]} scale={[0.085, 0.27, 0.085]} castShadow />
-                <mesh geometry={UNIT_SPHERE} material={skin} position={[0, -0.29, 0]} scale={[0.1, 0.11, 0.1]} />
+                <mesh geometry={UNIT_CYLINDER} material={skin} position={[0, -0.13, 0]} scale={[0.085, 0.27, 0.085]} />
+                {detail && <mesh geometry={UNIT_SPHERE} material={skin} position={[0, -0.29, 0]} scale={[0.1, 0.11, 0.1]} />}
                 {right && look.rightHand && <group position={[0, -0.42, 0.02]}>{look.rightHand}</group>}
               </group>
             </group>

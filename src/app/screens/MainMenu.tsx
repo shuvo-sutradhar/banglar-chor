@@ -7,6 +7,10 @@ export function MainMenu() {
   const startRun = useAppStore((s) => s.startRun);
   const setOverlay = useAppStore((s) => s.setOverlay);
   const sceneReady = useAppStore((s) => s.sceneReady);
+  const nickname = useAppStore((s) => s.nickname);
+  const setNickname = useAppStore((s) => s.setNickname);
+  const runs = useAppStore((s) => s.runs);
+  const best = runs.reduce<(typeof runs)[number] | null>((b, r) => (!b || r.score > b.score ? r : b), null);
 
   return (
     <div className="safe-pad pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-b from-night/70 via-transparent to-night/80">
@@ -27,7 +31,27 @@ export function MainMenu() {
             {t('settings')}
           </button>
         </div>
-        <p className="mt-6 rounded-full bg-black/30 px-4 py-1 text-sm text-moon">{t('prototypeBadge')}</p>
+        <label className="mt-4 flex w-full items-center gap-2 rounded-xl bg-black/30 px-3 py-2 text-sm">
+          <span className="shrink-0 text-moon">ডাকনাম</span>
+          <input
+            className="min-w-0 flex-1 rounded-lg bg-white/10 px-2 py-1.5 text-ink outline-none focus:ring-2 focus:ring-gold"
+            defaultValue={nickname}
+            maxLength={24}
+            onBlur={(e) => setNickname(e.target.value)}
+            aria-label="ডাকনাম (শুধু এই ডিভাইসে)"
+            data-testid="nickname"
+          />
+        </label>
+        {best && (
+          <div className="mt-3 w-full rounded-xl bg-black/35 px-3 py-2 text-left text-sm" data-testid="local-best">
+            <div className="text-gold">🏆 এই ডিভাইসের সেরা স্কোর: {best.score.toString().replace(/[0-9]/g, (d) => '০১২৩৪৫৬৭৮৯'[Number(d)]!)}</div>
+            <div className="text-xs text-moon">
+              {best.nickname} · মোট {runs.length.toString().replace(/[0-9]/g, (d) => '০১২৩৪৫৬৭৮৯'[Number(d)]!)} রান · শেষ: “{runs[0]?.line}”
+            </div>
+            <div className="text-[11px] text-moon/80">শুধু এই ব্রাউজারে সংরক্ষিত — অনলাইন র‍্যাংকিং নয়।</div>
+          </div>
+        )}
+        <p className="mt-4 rounded-full bg-black/30 px-4 py-1 text-sm text-moon">{t('prototypeBadge')}</p>
       </div>
     </div>
   );

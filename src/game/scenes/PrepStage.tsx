@@ -4,9 +4,9 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { damp } from '../../lib/math';
 import { useAppStore } from '../../state/useAppStore';
 import { useGameRuntime } from '../GameRuntime';
+import { disableCutout } from '../effects/cameraCutout';
 import { PLAYER_SPAWN } from '../data/tuning';
-import { HumanRig } from '../characters/HumanRig';
-import { THIEF_LOOK } from '../characters/appearances';
+import { ThiefModel } from '../characters/ThiefModel';
 import { mat } from '../world/materials';
 import { UNIT_BOX, UNIT_CYLINDER, UNIT_SPHERE } from '../world/sharedGeometry';
 
@@ -28,7 +28,7 @@ export function PrepStage() {
   return (
     <group position={[SX, 0, SZ]}>
       <group rotation={[0, 0, 0]}>
-        <HumanRig driver={runtime.player} look={THIEF_LOOK} />
+        <ThiefModel driver={runtime.player} />
       </group>
       {/* Stool with a bottle of mustard oil (সরিষার তেল) */}
       <group position={[0.75, 0, 0.35]}>
@@ -59,6 +59,7 @@ export function PrepCamera() {
     const dt = Math.min(rawDt, 0.1);
     const proud = runtime.player.action === 'proud';
     const reduced = useAppStore.getState().settings.reducedMotion;
+    disableCutout();
     dist.current = damp(dist.current, proud && !reduced ? 2.7 : 3.3, 2, dt);
     camera.position.x = damp(camera.position.x, SX + 0.4, 4, dt);
     camera.position.y = damp(camera.position.y, 1.45, 4, dt);

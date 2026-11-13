@@ -28,7 +28,7 @@ export const PLAYER_TUNING = {
   fullLoadSpeedPenalty: 0.45,
 } as const;
 
-export type CameraPresetId = 'exploration' | 'interior' | 'minigame' | 'chase' | 'caught';
+export type CameraPresetId = 'exploration' | 'interior' | 'minigame' | 'chase' | 'caught' | 'conversation';
 
 export type CameraPreset = {
   distance: number;
@@ -39,14 +39,18 @@ export type CameraPreset = {
 };
 
 export const CAMERA_PRESETS: Record<CameraPresetId, CameraPreset> = {
-  exploration: { distance: 5.4, targetHeight: 1.45, defaultPitch: 0.32, fov: 55 },
-  interior: { distance: 3.1, targetHeight: 1.3, defaultPitch: 0.45, fov: 62 },
+  /** Slightly closer than before so the thief reads at a glance (was 5.4 m / 55°). */
+  exploration: { distance: 5.0, targetHeight: 1.4, defaultPitch: 0.3, fov: 54 },
+  /** Cutaway view: the camera sits outside the small room, walls/roof cut around the sight line. */
+  interior: { distance: 3.7, targetHeight: 1.05, defaultPitch: 0.78, fov: 56 },
   /** Over-the-shoulder 3/4 view of the wall during the entry challenge. */
   minigame: { distance: 2.9, targetHeight: 1.0, defaultPitch: 0.3, fov: 55 },
   /** Pulled back so pursuers stay in view. */
   chase: { distance: 6.0, targetHeight: 1.5, defaultPitch: 0.36, fov: 60 },
   /** Slow orbit around the comic catch. */
   caught: { distance: 4.8, targetHeight: 1.0, defaultPitch: 0.42, fov: 52 },
+  /** Over-the-shoulder framing of a merchant during a trade. */
+  conversation: { distance: 2.5, targetHeight: 1.55, defaultPitch: 0.16, fov: 50 },
 };
 
 /** Camera yaw for the entry challenge: behind-left of a thief facing Rahim's back wall (+X). */

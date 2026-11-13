@@ -23,7 +23,7 @@
 - [x] Pause/resume (physics, animation, camera and input all freeze; tab hide auto-pauses; blur releases keys)
 - [x] Settings: quality Auto/Low/Medium/High (applied live), camera sensitivity, invert Y, reduced motion, hints, subtitles, reset graphics
 
-## Phase 2: First night encounter — ✅ verified in browser (awaiting your review before Phase 3)
+## Phase 2: First night encounter — ✅ verified in browser (reviewed; Phase 3 authorized)
 - [x] Preparation: three timed stages (oil — 3 hits on a moving marker; lungi tuck — press-and-hold, release in a band; gamcha — tap when the dial points up). The character visibly reacts to success and failure, with original Bangla lines. Works with keyboard, mouse and touch. Skip appears after the first completion (saved locally). Cosmetic results carry into the night. No soft lock: stages auto-complete after repeated misses.
 - [x] House entry minigame at Rahim's back wall: skill-based rhythm (perfect/good windows), progress vs. noise meters, first-attempt hint. Mistakes emit real world noise events (Rahim hears through the wall, the patrol can hear). Failure = loud noise + 6 s cooldown + control returned. Success opens the sidh and crawls into the house.
 - [x] Interior + loot: Rahim's house is now hollow, with a real navigable room (cot, shelf, trunk, mat, basket, kolshi; colliders; a ceiling for the camera). It holds 5–8 seeded items: brass pot, hurricane lantern, radio, kansa plate, alarm clock, gold-looking necklace or rare real jewellery, dentures, broken torch, hen. The focus card shows name, estimated value, weight and noise risk. Pickup removes the item from the world exactly once.
@@ -33,11 +33,19 @@
 - [x] Night rules (GAME_DESIGN §2): night clock 1:00→4:30 with a 4:00 rooster warning; escape with or without loot; catch; dawn rules.
 - [x] Objective line always shows the next step.
 
-## Phase 3: Complete loop
-- [ ] Dawn
-- [ ] 3D bazaar
-- [ ] Bargaining
-- [ ] Results + local save
+## Phase 3: Complete loop — ✅ verified in browser (awaiting your review)
+- [x] **Dawn:** real 3D night→morning transition (sky, sun, key light, fog, lanterns out, stars and fireflies fade; skippable), offered only after an escape with loot.
+- [x] **3D bazaar:** a separate zone (D-031) with a ring path, gates, a banyan, six stalls, benches, a crowd (walkers, seated villagers) and a watchman on patrol; ঝোলা contents carry over by instance id.
+- [x] **Bargaining:** three data-driven merchants (D-032): examine → defects → offer → counters (+10/25/50 %) judged by a persuasion meter → accept / walk away / refuse. Merchant state persists between visits.
+- [x] **Recognition:** deterministic and warned first (D-033); excuse via the meter or withdraw; failed excuses alert the watchman → a 3D market chase; escape through a gate, or get caught (confiscation + 50 % fine, D-035). Rahim arrives late and announced (D-036).
+- [x] **Results + local save:** pure score with an itemised breakdown (D-034), outcome line, nickname, personal best, save schema v2 with v1 migration, last 20 runs, replay starts clean.
+- [x] QA fixes found by the final browser runs: market watchman speed (D-037), duplicate run ids dropping history (D-042), test-harness facing at low FPS.
+
+## Premium transformation (requested after Phase 3) — see the Stage 4 results below
+- [x] Stage 1 audit + fixes: `docs/PREMIUM_TRANSFORMATION_AUDIT.md` (interior camera, lens obstruction, compact markers, night readability, vegetation variety, facing).
+- [~] Stage 2 Blender production: **blocked** (no Blender; download not permitted). Pipeline, spec, scripts and a **code-generated** placeholder GLB delivered instead (`docs/BLENDER_ASSET_PIPELINE.md`).
+- [x] Stage 3 integration: GLB thief + animation controller (D-039/D-040) with procedural fallback; camera cutout (D-038); lighting; audio cues; draw-call breakdown hook.
+- [x] Stage 4 QA: all suites re-run on the final build, before/after tour screenshots (desktop + mobile).
 
 ## Phase 4: Polish
 - [ ] Audio + captions
@@ -61,45 +69,33 @@
 
 ## Latest verified milestone
 - **Date:** 2026-11-13
-- **Code implemented:** Phase 2 (see checklist). New pure, unit-tested modules: `systems/{entryChallenge,preparation,inventory,runLogic,noise,objectives,itemEffects}`, `ai/{npcBrain,perception,sleeper,navGraph,villageNav}`, `data/{loot,houses,rahimHouse,dialogue}`. 3D: `characters/{HumanRig,VillagerNpc,RahimSleeper}`, `world/{RahimHouse,WorldItems,LootMesh}`, `scenes/{PrepStage,CaughtScene}`, `systems/NightDirector`. UI: preparation, entry, inventory, caught and resolution overlays, plus HUD widgets.
-- **Commands run (all passing on the same final build):**
-  - `npm run check` → `tsc -b` clean, `eslint .` clean, **67/67** unit tests (+44 since Phase 1). New tests cover:
-    - loot/inventory invariants, no duplicate pickup, capacity, drop and re-pickup
-    - catch confiscation exactly once, deterministic score
-    - entry challenge skill, failure, timing windows and late-delivered input
-    - preparation completion and no soft lock
-    - perception FOV/LOS/crouch and the fairness cap; hearing falloff, wall muffling and noise-bus subscriptions
-    - NPC FSM escalation, hearing-can't-chase, decay, chase ending, catch rules and never-stuck
-    - safe exit ending a chase; nav paths around the house; clear patrol legs
-    - phase table, objectives, and the Phase 1 → Phase 2 save upgrade
-  - `npm run build` → success
-  - `npm run smoke` (Phase 1 regression, headless Edge) → **35/35**
-  - `npm run smoke:phase2` (headless Edge) → **56/56**, covering the full Phase 2 verification list:
-    - start → timed preparation (keyboard and touch) → walk to Rahim's back wall → entry hint → pause freezes the minigame
-    - mistimed taps fail with real noise and a cooldown → skilled taps succeed → crawl into the room (interior camera)
-    - pick 4 items (each removed from the world, in inventory once) → inventory-full refusal → inventory overlay and drop
-    - leave via HUD → escape to the edge with loot (summary matches inventory) → skip persists after reload
-    - Rahim wakes from upright walking, warns, grabs → confiscation and penalty
-    - patrol notices (suspicion rises) → alarm → chase phase, HUD and camera → flee to the edge → he gives up and returns to routine
-    - caught by the patrol → vignette → resolution
-    - touch prep, mobile controls, inventory button; no console errors
-  - Browser timing input uses CDP key/touch events carrying explicit timestamps; the game judges input by `event.timeStamp` (D-024).
-- **Bugs found by these tests and fixed:**
-  - entry failure soft lock (D-025)
-  - touch finale tap-through
-  - touch hint bar blocking camera swipes
-  - pickup through walls (LOS tolerance)
-  - minigame camera inside a tree trunk
-  - outdoor prompts shown indoors
-  - game time drifting on slow frames
-  - neighbours running through walls in indoor catches
+- **Scope:** Phase 3 (complete loop) + the premium transformation pass, reported together as requested.
+- **Commands run on the final build (all passing):**
+  - `npm run check`: `tsc -b` clean, `eslint .` clean, **114/114** unit tests (Phase 3 market/scoring/persistence, chase fairness, run ids, the clip state controller, GLB asset spec, cutout shader patch).
+  - `npm run build`: success. `npm run validate:glb`: placeholder valid (5,922 tris, 23 bones, 18 clips, 314 KB).
+  - Browser (headless Edge, SwiftShader ≈ 4 FPS):
+
+| Suite | Result |
+|---|---|
+| `smoke` (Phase 1) | **35/35** |
+| `smoke:phase2` | **56/56** |
+| `smoke:phase3` (full NPC-enabled loop) | **29/29** |
+| `smoke:phase3-outcomes` | **19/19** |
+| `smoke:phase3-touch` | **11/11** |
+| `smoke:premium` | **15/15** |
+| `tour` desktop + `--mobile` | screenshots in `docs/screenshots/premium/` |
+
+- **Bugs found by these runs and fixed:**
+  - run-id collision dropping saved runs (D-042)
+  - market watchman faster than a lightly loaded thief (D-037)
+  - **touch tap-through in the trade panel**: the meter's compatibility click started an unwanted second counter; fixed with a short tap shield
+  - interior camera jammed (D-038)
+  - lens obstruction (D-038)
+  - Test-harness only: item facing at low FPS; Phase 2 suite updated for the Phase 3 night-resolution flow
 - **Known issues / limitations:**
-  - **Not measured on real hardware.** Headless CPU rendering ran at about 3–5 FPS, which says nothing about phones. NPC rigs (~40 primitives each) add draw calls, so this needs on-device profiling.
-  - All art and animation is procedural prototype (ART_DIRECTION). Audio is synthesized stand-ins (AUDIO_DIRECTION). There are no voice recordings; subtitles carry the dialogue.
-  - Only Rahim's house is enterable. Kuddus and Morol remain exterior-only (Phase 5).
-  - NPC navigation covers the area around Rahim's house well. Elsewhere it steers directly, and the leash/lost-sight rules end chases if it gets blocked.
-  - The camera uses a single ray (no sphere sweep). Thin props are camera-transparent outdoors; they block the camera indoors and in the minigame.
-  - The night score is provisional and **not saved**; the bazaar and results come in Phase 3.
-  - The inventory panel doesn't pause the world (by design); this may need phone playtesting.
-- **Manual testing still needed:** see `docs/QA_CHECKLIST.md` (real phones, GPU desktops, feel and difficulty tuning, audio levels).
-- **Next exact task (after your Phase 2 review):** Phase 3, step 1. Build the dawn transition: when the night resolves with loot, animate sky, light and fog to morning and move to the bazaar zone, replacing the Phase 2 end screen's "bazaar comes next" note.
+  - **No Blender asset exists** (not installed; download blocked). The thief is a code-generated placeholder GLB; NPCs and the environment are procedural.
+  - Placeholder defects: the thigh clips the lungi front at a full sprint; mitten hands; no facial animation; vertex colours only.
+  - Draw calls are still above the 150 budget (village ~276, bazaar ~410). NPC rigs are the main cost.
+  - The cutout dither leaves a faint trace of dissolved culms.
+  - **Not measured on real hardware.**
+- **Next exact task (after your review):** decide on Blender (permission to install it, or an artist), then Phase 4 polish.

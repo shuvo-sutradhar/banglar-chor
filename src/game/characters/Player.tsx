@@ -19,6 +19,7 @@ import { PLAYER_COLLIDER } from '../physics/queries';
 import { ThiefModel } from './ThiefModel';
 import { setAction } from './rigTypes';
 import { FOOTSTEP_NOISE } from '../systems/noise';
+import { audio } from '../audio/AudioManager';
 
 type KinematicController = ReturnType<ReturnType<typeof useRapier>['world']['createCharacterController']>;
 
@@ -42,7 +43,7 @@ function blobShadowMaterial(): MeshBasicMaterial {
  * `useBeforePhysicsStep` at the fixed physics rate, so speed is frame-rate independent
  * and pausing the physics world pauses the player.
  */
-export function Player() {
+export function Player({ spawn = PLAYER_SPAWN }: { spawn?: readonly [number, number, number] }) {
   const runtime = useGameRuntime();
   const { world, rapier } = useRapier();
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -97,7 +98,7 @@ export function Player() {
     p.body = bodyRef.current;
     p.collider = colliderRef.current;
     p.visual = visualRef.current;
-    p.position.set(...PLAYER_SPAWN);
+    p.position.set(...spawn);
     p.forward.set(0, 0, -1);
     p.mode = 'idle';
     p.horizontalSpeed = 0;
@@ -109,7 +110,7 @@ export function Player() {
       p.visual = null;
       runtime.input.onCrouchChange = null;
     };
-  }, [runtime]);
+  }, [runtime, spawn]);
 
   useBeforePhysicsStep(() => {
     const body = bodyRef.current;
@@ -182,7 +183,7 @@ export function Player() {
     let nz = p.z + moved.z;
     if (ny < PLAYER_TUNING.killPlaneY) {
       // Safety net only (should never trigger): return to spawn rather than fall forever.
-      [nx, ny, nz] = PLAYER_SPAWN;
+      [nx, ny, nz] = spawn;
       body.setTranslation({ x: nx, y: ny, z: nz }, true);
       motor.velocity.x = motor.velocity.z = motor.verticalVelocity = 0;
     } else {
@@ -191,11 +192,15 @@ export function Player() {
 
     player.position.set(nx, ny, nz);
     player.horizontalSpeed = actual;
+    player.carry = player.loadRatio;
     player.grounded = motor.grounded;
     // Report the animation mode from real motion so "walking into a wall" reads as idle.
     const effectiveMode: MovementMode = actual < 0.15 && mode !== 'airborne' ? (input.crouched ? 'crouch-idle' : 'idle') : mode;
     player.mode = effectiveMode;
+    // Face where the player is steering (responsive even when sliding along / blocked by a wall);
+    // fall back to the actual motion when there is no input (e.g. momentum after release).
     if (player.faceHeading !== null) motor.targetHeading = player.faceHeading;
+    else if (magnitude > 0.1 && motor.grounded) motor.targetHeading = Math.atan2(motor.direction.x, motor.direction.z);
     else if (actual > 0.15) motor.targetHeading = Math.atan2(actualVx, actualVz);
     if (effectiveMode !== motor.lastMode) {
       motor.lastMode = effectiveMode;
@@ -210,23 +215,26 @@ export function Player() {
       const f = effectiveMode === 'run' ? FOOTSTEP_NOISE.run : effectiveMode === 'crouch-walk' ? FOOTSTEP_NOISE.crouch : FOOTSTEP_NOISE.walk;
       const radius = f.radius * (1 + FOOTSTEP_NOISE.loadRadiusBoost * player.loadRatio);
       runtime.noise.emit({ x: nx, y: ny, z: nz, radius, severity: f.severity, source: 'footstep', byPlayer: true }, runtime.simTime);
+      audio.play('footstep', { gain: effectiveMode === 'run' ? 0.8 : effectiveMode === 'crouch-walk' ? 0.25 : 0.5 });
     }
   });
 
   useFrame((_, rawDt) => {
     if (useAppStore.getState().paused) return;
     const dt = Math.min(rawDt, 0.1);
-    motor.heading = dampAngle(motor.heading, motor.targetHeading, PLAYER_TUNING.turnRate, dt);
+    // Big reversals turn faster so a U-turn never feels sluggish; small corrections stay smooth.
+    const diff = Math.abs(Math.atan2(Math.sin(motor.targetHeading - motor.heading), Math.cos(motor.targetHeading - motor.heading)));
+    motor.heading = dampAngle(motor.heading, motor.targetHeading, PLAYER_TUNING.turnRate * (diff > Math.PI / 2 ? 1.5 : 1), dt);
     if (visualRef.current) visualRef.current.rotation.y = motor.heading;
     runtime.player.forward.set(Math.sin(motor.heading), 0, Math.cos(motor.heading));
   });
 
   const { capsuleHalfHeight: hh, capsuleRadius: r } = PLAYER_TUNING;
   return (
-    <RigidBody ref={bodyRef} name="player" type="kinematicPosition" colliders={false} position={[...PLAYER_SPAWN]} enabledRotations={[false, false, false]}>
+    <RigidBody ref={bodyRef} name="player" type="kinematicPosition" colliders={false} position={[...spawn]} enabledRotations={[false, false, false]}>
       <CapsuleCollider ref={colliderRef} name={PLAYER_COLLIDER} args={[hh, r]} position={[0, hh + r, 0]} />
       <group ref={visualRef} rotation={[0, Math.PI, 0]}>
-        <ThiefModel runtime={runtime.player} />
+        <ThiefModel driver={runtime.player} />
       </group>
       <mesh geometry={shadow.geometry} material={shadow.material} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} scale={[1.1, 1.1, 1]} renderOrder={1} />
     </RigidBody>

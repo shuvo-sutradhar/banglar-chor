@@ -12,7 +12,16 @@
     "test": "node scripts/vitest.mjs run",
     "smoke": "node tests/smoke/smoke.mjs",
     "check": "tsc -b && eslint . && node scripts/vitest.mjs run",
-    "smoke:phase2": "node tests/smoke/phase2.mjs"
+    "smoke:phase2": "node tests/smoke/phase2.mjs",
+    "smoke:phase3": "node tests/smoke/phase3-full.mjs",
+    "smoke:phase3-outcomes": "node tests/smoke/phase3-outcomes.mjs",
+    "smoke:phase3-touch": "node tests/smoke/phase3-touch.mjs",
+    "assets:placeholder": "node scripts/assets/build-placeholder-thief.mjs && node scripts/assets/optimize-glb.mjs public/assets/models/characters/thief_placeholder.glb && node scripts/assets/validate-glb.mjs",
+    "assets:optimize": "node scripts/assets/optimize-glb.mjs",
+    "validate:glb": "node scripts/assets/validate-glb.mjs",
+    "tour": "node tests/smoke/visual-tour.mjs",
+    "shoot:glb": "node tests/visual/shoot-glb.mjs",
+    "smoke:premium": "node tests/smoke/premium.mjs"
   },
   "dependencies": {
     "@fontsource/hind-siliguri": "^5.3.0",
@@ -27,6 +36,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@gltf-transform/core": "4.2.1",
+    "@gltf-transform/extensions": "4.2.1",
+    "@gltf-transform/functions": "4.2.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",

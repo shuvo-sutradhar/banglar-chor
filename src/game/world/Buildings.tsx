@@ -7,6 +7,7 @@ import { useAppStore } from '../../state/useAppStore';
 import { mergeColoredParts, type ColoredPart } from './geometryUtils';
 import { COWSHED, HOUSES, TEA_STALL } from './layout';
 import { mat, PALETTE, signTexture } from './materials';
+import { applyCutout } from '../effects/cameraCutout';
 import { Block, ClayStove, GableRoof, Kolshi, Lantern, Post, Structure, VerandaRamp } from './buildingParts';
 import { UNIT_BOX, UNIT_CYLINDER, prismGeometry } from './sharedGeometry';
 import { haystackGeometry } from './propGeometries';
@@ -191,7 +192,7 @@ function Cowshed() {
 
 /** বন্ধ চায়ের দোকান — a shuttered roadside tea stall with a bench. */
 function TeaStall() {
-  const signMaterial = useMemo(() => new MeshLambertMaterial({ map: signTexture('চায়ের দোকান', '#e3ba70', '#3b2a1e') }), []);
+  const signMaterial = useMemo(() => applyCutout(new MeshLambertMaterial({ map: signTexture('চায়ের দোকান', '#e3ba70', '#3b2a1e') })), []);
   return (
     <Structure placement={TEA_STALL}>
       <Block size={[2.6, 2.1, 1.8]} position={[0, 1.05, 0]} material={mat('wood')} collider />

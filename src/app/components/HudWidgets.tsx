@@ -24,8 +24,13 @@ export function ObjectiveLine() {
   const run = useRunStore((s) => s.run);
   const dawnWarning = useRunStore((s) => s.dawnWarning);
   const rahimAwake = useRunStore((s) => s.rahimAwake);
+  const zone = useAppStore((s) => s.zone);
+  const wanted = useRunStore((s) => s.wanted);
   if (!run) return null;
   const text = currentObjective({
+    zone,
+    wanted,
+    money: run.market?.money ?? 0,
     phase,
     houseEntered: run.houseIdsEntered.length > 0,
     holeOpen: run.holesOpened.includes('rahim'),
@@ -45,6 +50,14 @@ export function ObjectiveLine() {
 export function NightClock() {
   const minutes = useRunStore((s) => s.nightMinutes);
   const dawn = useRunStore((s) => s.dawnWarning);
+  const zone = useAppStore((s) => s.zone);
+  const money = useRunStore((s) => s.run?.market?.money ?? 0);
+  if (zone === 'bazaar')
+    return (
+      <div className="panel px-3 py-1.5 text-sm tabular-nums" data-testid="night-clock">
+        🌞 সকালের হাট · <span className="text-gold" data-testid="hud-money">💰 ৳{toBnDigits(money)}</span>
+      </div>
+    );
   return (
     <div className={`panel px-3 py-1.5 text-sm tabular-nums ${dawn ? 'text-gold' : ''}`} data-testid="night-clock">
       🌙 {formatNightClock(minutes)}

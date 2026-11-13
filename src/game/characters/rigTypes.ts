@@ -16,7 +16,10 @@ export type ActionPose =
   | 'caught'
   | 'shout'
   | 'look-around'
-  | 'sit-up';
+  | 'sit-up'
+  | 'sit'
+  | 'examine'
+  | 'wave';
 
 /** Cosmetic preparation state (README §6 — purely visual fantasy). */
 export type Cosmetic = { oil: number; tuck: number; headband: boolean };
@@ -29,6 +32,8 @@ export type RigDriver = {
   /** Seconds since `action` started (advanced by the rig). */
   actionTime: number;
   cosmetic?: Cosmetic;
+  /** 0..1 carried load: shows a sack on the back that grows with it. */
+  carry?: number;
 };
 
 export function setAction(driver: RigDriver, action: ActionPose | null): void {

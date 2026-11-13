@@ -31,7 +31,7 @@ const KIND_VERB: Record<InteractionKind, string> = {
   pick_up: 'তুলে নাও',
   enter: '',
   hide: 'লুকাও',
-  talk: 'কথা বলো',
+  talk: '',
   sell: 'বেচো',
   exit: '',
 };
@@ -116,7 +116,7 @@ export function Hud({ onLeaveHouse }: { onLeaveHouse: () => void }) {
   const phase = useAppStore((s) => s.phase);
   const togglePause = useAppStore((s) => s.togglePause);
   const setInventoryOpen = useRunStore((s) => s.setInventoryOpen);
-  const minimal = phase === 'entry' || phase === 'caught';
+  const minimal = phase === 'entry' || phase === 'caught' || phase === 'bargain';
 
   return (
     <>
@@ -154,7 +154,7 @@ export function Hud({ onLeaveHouse }: { onLeaveHouse: () => void }) {
             </div>
             <DangerMeter />
             {!minimal && <CarryBar onOpen={() => setInventoryOpen(true)} />}
-            {phase === 'interior' && (
+            {phase === 'interior' && useAppStore.getState().zone === 'village' && (
               <button
                 type="button"
                 className="btn btn-ghost pointer-events-auto !min-h-11 border-gold text-base"

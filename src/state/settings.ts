@@ -17,6 +17,11 @@ export const settingsSchema = z.object({
   muted: z.boolean().default(false),
   /** Rough crowd lines in the catch scene (README §9). Off = family-friendly alternatives. */
   roughDialogue: z.boolean().default(false),
+  /**
+   * Thief visual: the skinned GLB model (with the procedural rig as automatic fallback) or the
+   * original procedural rig. Added with the premium pass; defaulted so older saves validate.
+   */
+  characterModel: z.enum(['model', 'procedural']).default('model'),
 });
 
 export type Settings = z.output<typeof settingsSchema>;
@@ -31,6 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: 0.8,
   muted: false,
   roughDialogue: false,
+  characterModel: 'model',
 };
 
 export type QualityProfile = {

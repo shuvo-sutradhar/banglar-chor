@@ -140,12 +140,13 @@ export class InputController {
   /** Attach keyboard + focus listeners. Returns a cleanup function; safe to call once per mount. */
   attachKeyboard(target: Window): () => void {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target)) return;
+      // Escape always works (closes dialogs / pauses), even from a text field.
       if (e.code === 'Escape') {
         e.preventDefault();
         this.onPauseRequest?.();
         return;
       }
+      if (isTypingTarget(e.target)) return;
       if (!this.enabled) return;
       if (e.code === 'Tab' || e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
       if (e.repeat) return;
@@ -229,5 +230,11 @@ export class InputController {
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+  if (tag === 'INPUT') {
+    // Only text-entry fields swallow keys; checkboxes/sliders must still let Esc close dialogs.
+    const type = (target as HTMLInputElement).type;
+    return !['checkbox', 'radio', 'range', 'button', 'submit', 'reset', 'color'].includes(type);
+  }
+  return tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
 }
+

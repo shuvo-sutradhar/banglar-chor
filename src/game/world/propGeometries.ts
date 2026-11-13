@@ -3,36 +3,57 @@ import { createRng } from '../../lib/rng';
 import { mergeColoredParts, type ColoredPart } from './geometryUtils';
 import { PALETTE } from './materials';
 
-export function bambooClumpGeometry(): BufferGeometry {
-  const rng = createRng(101);
+const BAMBOO_GREENS = ['#4f7a3a', '#5d8a41', '#46703a', '#6a9446'];
+
+/**
+ * Bamboo clump (বাঁশঝাড়): culms fan outward from a tight base and arch over, with rounded leaf
+ * masses drooping off the tips. `variant` changes the seed so neighbouring clumps differ.
+ */
+export function bambooClumpGeometry(variant = 0, detail: 0 | 1 = 1): BufferGeometry {
+  const rng = createRng(101 + variant * 977);
   const parts: ColoredPart[] = [];
-  const culm = new CylinderGeometry(0.06, 0.08, 1, 5);
-  const leaf = new IcosahedronGeometry(1, 0);
-  for (let i = 0; i < 9; i++) {
-    const angle = rng.range(0, Math.PI * 2);
-    const r = rng.range(0.1, 0.6);
-    const h = rng.range(5, 7.5);
-    const tiltX = rng.range(-0.18, 0.18);
-    const tiltZ = rng.range(-0.18, 0.18);
-    const x = Math.cos(angle) * r;
-    const z = Math.sin(angle) * r;
-    parts.push({ geometry: culm, color: rng.next() > 0.4 ? PALETTE.bamboo : PALETTE.bambooDark, position: [x + tiltZ * h * 0.5, h / 2, z - tiltX * h * 0.5], rotation: [tiltX, 0, tiltZ], scale: [1, h, 1] });
-    parts.push({ geometry: leaf, color: rng.next() > 0.5 ? PALETTE.vegetation : PALETTE.vegetationDark, position: [x + tiltZ * h, h - 0.3, z - tiltX * h], scale: [1.1, 0.7, 1.1] });
+  const culm = new CylinderGeometry(0.055, 0.08, 1, 5);
+  const leaf = new IcosahedronGeometry(1, detail);
+  const n = 8 + Math.floor(rng.range(0, 4));
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * Math.PI * 2 + rng.range(-0.3, 0.3);
+    const r = rng.range(0.08, 0.45);
+    const h = rng.range(4.6, 7.6);
+    const lean = 0.06 + r * 0.35 + rng.range(0, 0.1); // outer culms lean further out
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const tiltX = dz * lean;
+    const tiltZ = -dx * lean;
+    const x = dx * r;
+    const z = dz * r;
+    const topX = x + dx * Math.sin(lean) * h;
+    const topZ = z + dz * Math.sin(lean) * h;
+    const topY = Math.cos(lean) * h;
+    parts.push({ geometry: culm, color: rng.next() > 0.35 ? PALETTE.bamboo : PALETTE.bambooDark, position: [(x + topX) / 2, topY / 2, (z + topZ) / 2], rotation: [tiltX, 0, tiltZ], scale: [1, h, 1] });
+    // drooping leaf spray just past the tip, hanging outward and down
+    if (i % 2 === 0 || h > 6.5) {
+      const c = BAMBOO_GREENS[Math.floor(rng.range(0, BAMBOO_GREENS.length))]!;
+      parts.push({ geometry: leaf, color: c, position: [topX + dx * 0.5, topY - 0.55, topZ + dz * 0.5], scale: [1.05, 0.62, 1.05], rotation: [rng.range(-0.3, 0.3), 0, rng.range(-0.3, 0.3)] });
+    }
   }
-  for (let i = 0; i < 4; i++) {
-    parts.push({ geometry: leaf, color: PALETTE.vegetationDark, position: [rng.range(-0.8, 0.8), rng.range(3, 4.5), rng.range(-0.8, 0.8)], scale: [1.3, 0.9, 1.3] });
+  // inner canopy fill so the clump reads as one soft mass, not separate balls
+  for (let i = 0; i < 3; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    parts.push({ geometry: leaf, color: i === 0 ? PALETTE.vegetationDark : BAMBOO_GREENS[i]!, position: [Math.cos(a) * 0.7, rng.range(4.2, 5.4), Math.sin(a) * 0.7], scale: [1.5, 0.85, 1.5] });
   }
   return mergeColoredParts(parts);
 }
 
-export function palmGeometry(): BufferGeometry {
+export function palmGeometry(variant = 0): BufferGeometry {
   const parts: ColoredPart[] = [];
   const seg = new CylinderGeometry(0.16, 0.2, 1.6, 6);
+  const bend = variant === 1 ? 0.02 : 0.04; // variant 1 stands straighter and taller
+  const segs = variant === 1 ? 6 : 5;
   // Gently curving trunk built from stacked segments.
-  for (let i = 0; i < 5; i++) {
-    parts.push({ geometry: seg, color: i % 2 ? '#6d5640' : '#5e4936', position: [i * i * 0.04, 0.8 + i * 1.5, 0], rotation: [0, 0, -0.05 * i] });
+  for (let i = 0; i < segs; i++) {
+    parts.push({ geometry: seg, color: i % 2 ? '#6d5640' : '#5e4936', position: [i * i * bend, 0.8 + i * 1.5, 0], rotation: [0, 0, -bend * 1.25 * i] });
   }
-  const top: [number, number, number] = [1.0, 7.9, 0];
+  const top: [number, number, number] = [(segs - 1) * (segs - 1) * bend + 0.36, 0.8 + (segs - 1) * 1.5 + 1.1, 0];
   const frond = new ConeGeometry(0.35, 3.2, 4);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
@@ -64,8 +85,13 @@ export function bananaGeometry(): BufferGeometry {
   return mergeColoredParts(parts);
 }
 
-export function bushGeometry(): BufferGeometry {
-  const blob = new IcosahedronGeometry(0.7, 0);
+export function bushGeometry(variant = 0): BufferGeometry {
+  const blob = new IcosahedronGeometry(0.7, 1);
+  if (variant === 1)
+    return mergeColoredParts([
+      { geometry: blob, color: '#3f6236', position: [0, 0.4, 0], scale: [1.0, 0.65, 1.3] },
+      { geometry: blob, color: '#557f3f', position: [0.35, 0.62, -0.3], scale: [0.65, 0.6, 0.65] },
+    ]);
   return mergeColoredParts([
     { geometry: blob, color: PALETTE.vegetationDark, position: [0, 0.45, 0], scale: [1.2, 0.8, 1.1] },
     { geometry: blob, color: PALETTE.vegetation, position: [0.5, 0.55, 0.2], scale: [0.8, 0.7, 0.8] },

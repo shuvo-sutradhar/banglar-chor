@@ -13,6 +13,10 @@ import { PreparationOverlay } from './screens/PreparationOverlay';
 import { EntryOverlay } from './screens/EntryOverlay';
 import { CaughtOverlay } from './screens/CaughtOverlay';
 import { NightResolution } from './screens/NightResolution';
+import { DawnOverlay } from './screens/DawnOverlay';
+import { TradePanel } from './screens/TradePanel';
+import { ResultsScreen } from './screens/ResultsScreen';
+import { MarketExitPrompt } from './components/MarketExitPrompt';
 import { InventoryPanel } from './components/InventoryPanel';
 import { GameCanvas } from '../game/GameCanvas';
 import { ErrorBoundary, FatalScreen } from './components/ErrorBoundary';
@@ -107,7 +111,9 @@ function GameRoot() {
   }, [paused]);
 
   useEffect(() => {
-    if (WORLD_PHASES.includes(phase) || phase === 'preparation') audio.startAmbience();
+    const zone = useAppStore.getState().zone;
+    if (phase === 'dawn' || ((phase === 'bazaar' || phase === 'bargain' || phase === 'chase' || phase === 'caught') && zone === 'bazaar')) audio.startAmbience(phase === 'dawn' ? 'morning' : 'market');
+    else if (WORLD_PHASES.includes(phase) || phase === 'preparation') audio.startAmbience('night');
     else audio.stopAmbience();
   }, [phase]);
 
@@ -134,6 +140,13 @@ function GameRoot() {
     useHudStore.getState().resetSession();
   }, [runtime, sessionId]);
 
+  // Switching zones (village → bazaar) clears village-only HUD/camera state.
+  const zone = useAppStore((s) => s.zone);
+  useEffect(() => {
+    useHudStore.getState().setZoneLabel(null);
+    runtime.camera.interiorZones.clear();
+  }, [runtime, zone]);
+
   // Inventory closes automatically outside controllable phases.
   useEffect(() => {
     if (!CONTROL_PHASES.includes(phase) && useRunStore.getState().inventoryOpen) useRunStore.getState().setInventoryOpen(false);
@@ -155,7 +168,7 @@ function GameRoot() {
     }, 300);
   };
 
-  const hudPhases = ['night', 'entry', 'interior', 'chase', 'caught'];
+  const hudPhases = ['night', 'entry', 'interior', 'chase', 'caught', 'bazaar', 'bargain'];
   const showHud = hudPhases.includes(phase);
   const controls = CONTROL_PHASES.includes(phase);
   return (
@@ -167,6 +180,10 @@ function GameRoot() {
       {phase === 'entry' && <EntryOverlay runtime={runtime} />}
       {phase === 'caught' && <CaughtOverlay />}
       {phase === 'night-resolution' && <NightResolution />}
+      {phase === 'dawn' && <DawnOverlay />}
+      {phase === 'bargain' && <TradePanel runtime={runtime} />}
+      {phase === 'bazaar' && <MarketExitPrompt runtime={runtime} />}
+      {phase === 'results' && <ResultsScreen />}
       {controls && inventoryOpen && !paused && <InventoryPanel runtime={runtime} />}
       {controls && touchUi && !paused && <MobileControls input={runtime.input} />}
       {paused && phase !== 'menu' && <PauseMenu />}

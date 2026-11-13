@@ -14,6 +14,13 @@ This reads as a stylized Bangladeshi village (mud houses on raised plinths with 
 - Procedural loot models (brass badna, hurricane lantern, radio, kansa plate, alarm clock, necklace, dentures in a glass, torch, hen) and original SVG inventory icons.
 - Catch vignette effects: dust puffs, orbiting stars, flying sandal. NPC vision cone and `?`/`!` alert icons.
 
+## Premium pass (honest state)
+- **Thief:** now a single **skinned GLB** (one continuous body, smooth joint weights, 18 clips, lungi-tuck shape key, headband toggle, oil shine on `Thief_Skin`). It is **code-generated** (`scripts/assets/build-placeholder-thief.mjs`), not sculpted by an artist. It follows `BLENDER_CHARACTER_SPEC.md` so an artist's Blender model replaces it without code changes. The procedural rig remains as the fallback and as a Settings option.
+- **NPCs** (Rahim, Majnu, merchants, watchman, shoppers) are still the procedural `HumanRig`. They are also the largest draw-call cost in the bazaar (~25–40 meshes each).
+- **Readability:** brighter moon-blue fill, ground bounce, night exposure 1.12, stronger avatar fill light. The camera cutout keeps the thief visible behind walls, roofs and culms.
+- **Vegetation:** bamboo clumps fan out and arch, with rounded drooping leaf masses; 3 near and 2 far variants, plus palm and bush variants and height jitter. Still primitive-based, not alpha-card foliage.
+- **Markers:** a compact amber diamond with a soft glow, a small ring only for pick-ups, fade in and out, near-constant screen size.
+
 ## Visual pillars
 1. Readable shapes first: player, walls, interactables and ground must separate at a glance at night.
 2. Warm lantern pools against cool moonlight (palette in README §5).

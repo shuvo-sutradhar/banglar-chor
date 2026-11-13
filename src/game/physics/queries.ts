@@ -11,6 +11,12 @@ import type { RapierCollider, useRapier } from '@react-three/rapier';
  */
 export const CAMERA_TRANSPARENT = 'camera-transparent';
 
+/**
+ * Walls/ceiling of an enterable house. They block movement, sight and the outdoor camera, but the
+ * camera ignores them while the player is INSIDE (the camera cutout opens the view instead).
+ */
+export const HOUSE_SHELL = 'house-shell';
+
 type ColliderStates = ReturnType<typeof useRapier>['colliderStates'];
 
 
@@ -26,6 +32,14 @@ export function makeCameraRayFilter(states: ColliderStates): (collider: RapierCo
   return (collider) => {
     const name = states.get(collider.handle)?.object.name;
     return name !== CAMERA_TRANSPARENT && name !== PLAYER_COLLIDER && name !== NPC_COLLIDER;
+  };
+}
+
+/** Indoors: like the camera filter, but the house shell no longer pushes the camera in. */
+export function makeInteriorCameraRayFilter(states: ColliderStates): (collider: RapierCollider) => boolean {
+  return (collider) => {
+    const name = states.get(collider.handle)?.object.name;
+    return name !== CAMERA_TRANSPARENT && name !== HOUSE_SHELL && name !== PLAYER_COLLIDER && name !== NPC_COLLIDER;
   };
 }
 

@@ -1,6 +1,7 @@
 import {
   CanvasTexture,
   Color,
+  DoubleSide,
   MeshBasicMaterial,
   MeshLambertMaterial,
   MeshStandardMaterial,
@@ -10,6 +11,7 @@ import {
   type Texture,
 } from 'three';
 import { createRng } from '../../lib/rng';
+import { applyCutout } from '../effects/cameraCutout';
 
 /**
  * Procedural, hand-painted-style textures drawn on small canvases (zero downloaded assets).
@@ -259,7 +261,25 @@ type MaterialKey =
   | 'henWhite'
   | 'comb'
   | 'dust'
-  | 'holeDark';
+  | 'holeDark'
+  | 'shirtBlue'
+  | 'shirtStripe'
+  | 'saree'
+  | 'sareeHood'
+  | 'panjabi'
+  | 'vestBrown'
+  | 'vegRed'
+  | 'vegOrange'
+  | 'vegYellow'
+  | 'vegGreen'
+  | 'egg'
+  | 'clothYellow'
+  | 'clothTeal'
+  | 'clayLight'
+  | 'bark'
+  | 'canopy'
+  | 'clothRed'
+  | 'clothGreen';
 
 type AnyMat = MeshLambertMaterial | MeshStandardMaterial | MeshBasicMaterial;
 const materialCache = new Map<MaterialKey, AnyMat>();
@@ -367,13 +387,53 @@ function build(key: MaterialKey): AnyMat {
       return new MeshLambertMaterial({ color: '#b49a78', transparent: true, opacity: 0.6, depthWrite: false });
     case 'holeDark':
       return new MeshBasicMaterial({ color: '#0a0806' });
+    case 'shirtBlue':
+      return lambert('#3a6ea5');
+    case 'shirtStripe':
+      return lambert('#ffffff', makeTexture('shirt-stripe', 64, checkPainter('#d9534f', '#f6f1e8', '#f6f1e8'), [1, 2]));
+    case 'saree':
+      return lambert('#ffffff', makeTexture('saree', 64, checkPainter('#b8325a', '#e3ba70', '#7a1f3d'), [2, 3]));
+    case 'sareeHood':
+      return lambert('#b8325a');
+    case 'panjabi':
+      return lambert('#efe6cf');
+    case 'vestBrown':
+      return lambert('#6b4a2e');
+    case 'vegRed':
+      return lambert('#c8342a');
+    case 'vegOrange':
+      return lambert('#e07b28');
+    case 'vegYellow':
+      return lambert('#e8c63a');
+    case 'vegGreen':
+      return lambert('#4e8a34');
+    case 'egg':
+      return lambert('#f3ead8');
+    case 'clothYellow':
+      return lambert('#e3b33a');
+    case 'clothTeal':
+      return lambert('#2f8a83');
+    case 'clayLight':
+      return lambert('#b9764a');
+    case 'bark':
+      return lambert('#5b4532');
+    case 'canopy':
+      return lambert('#3f6b37');
+    case 'clothRed':
+      return new MeshLambertMaterial({ color: '#a45d46', side: DoubleSide });
+    case 'clothGreen':
+      return new MeshLambertMaterial({ color: '#456a3d', side: DoubleSide });
   }
 }
+
+/** Ground-like surfaces never dissolve (a hole in the floor would show the void). */
+const NO_CUTOUT: ReadonlySet<MaterialKey> = new Set<MaterialKey>(['dirt', 'path', 'grass', 'courtyard', 'water', 'plinth']);
 
 export function mat(key: MaterialKey): AnyMat {
   let m = materialCache.get(key);
   if (!m) {
     m = build(key);
+    if (!NO_CUTOUT.has(key)) applyCutout(m);
     materialCache.set(key, m);
   }
   return m;

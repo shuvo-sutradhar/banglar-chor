@@ -101,6 +101,7 @@ export function SettingsDialog() {
       </label>
       <Toggle label="সব শব্দ বন্ধ" checked={settings.muted} onChange={(v) => update({ muted: v })} />
       <Toggle label="ধরা পড়ার দৃশ্যে রুক্ষ গ্রাম্য সংলাপ" checked={settings.roughDialogue} onChange={(v) => update({ roughDialogue: v })} />
+      <Toggle label="নতুন চোর মডেল (বন্ধ = পুরোনো সাধারণ মডেল)" checked={settings.characterModel === 'model'} onChange={(v) => update({ characterModel: v ? 'model' : 'procedural' })} />
 
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-moon/20 pt-4">
         <p className="text-sm text-moon">{t('settingsSavedLocal')}</p>

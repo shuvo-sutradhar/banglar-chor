@@ -103,3 +103,52 @@ The bazaar is Phase 3. The night ends at a summary computed purely from the run 
 
 ## D-030 · Test-only `?debug=1&nonpc=1`
 This removes only the patrolling villager (Rahim stays), so Phase 1 movement measurements and the deterministic loot/entry flow don't depend on patrol timing. NPC behaviour is tested separately with the patrol present. The game never reads this flag without `debug`.
+
+## D-031 · One zone mounted at a time (village ↔ bazaar)
+`useAppStore.zone` selects which scenery, colliders, NPCs and directors are mounted. Only one is ever in the scene graph, so the bazaar's ~40 stalls, goods and crowd never cost draw calls or physics at night, and vice versa. The dawn transition (`DawnOverlay` + `daylight.factor` 0→1 over 7.5 s, skippable) hides the switch. Run state (inventory, outcome, seed) lives in Zustand and survives the zone change; per-zone runtime (NPC map, noise bus listeners, interactables) is reset on the switch.
+
+## D-032 · Merchants are data, not code
+`data/merchants.ts` describes each merchant with the same `MerchantProfile` shape: category preferences, opening/cap fractions, counter limit, patience, observation, defect detection, budget, persuasion-meter speed and windows. The three merchants differ only in data:
+- হাশেম (metal, careful, sharp-eyed)
+- জলিল (electronics, low-ball tactics, careless)
+- বকুল (livestock, impatient, small budget)
+
+`systems/bargaining.ts` is one pure state machine driven by these numbers, so new merchants need no new code.
+
+## D-033 · Recognition is deterministic, not a dice roll
+Risk = `recognizability × observant + suspicion / 200`. When risk ≥ 0.5, the merchant recognises the item (e.g. Rahim's distinctive lantern at Hashem's) and the trade switches to a recognition phase: excuse via the persuasion meter, or withdraw. The player can learn and predict the rule ("Hashem notices everything; Jalil doesn't look closely"), which is fairer than a hidden random roll. Failed excuses lead to a confrontation that raises the market alarm.
+
+## D-034 · Score: each item counts exactly once
+README §12 lists both "sale value" and "loot value" terms, which would double-count a sold item. In `computeRunScore`, each item contributes **either** `floor(salePrice × 0.5)` when sold **or** `floor(baseValue × 0.25)` when carried home unsold, never both. Bonuses: clean escape 500, stealth 0–300, risk ≤ 400, funny ≤ 300. Penalties: night caught 600, market caught 400, recognitions 250 × min(n, 2). The function is pure and unit-tested; the results screen shows every line.
+
+## D-035 · Caught at the market
+When the watchman catches the thief, unsold items are confiscated and **half the money earned** is fined (`MARKET_RULES.caughtFineFraction`), then the run goes straight to results. Escaping through a gate during a chase ends the market as "escaped" with money kept. Leaving through a gate calmly asks for confirmation first (unsold items stay in the ঝোলা).
+
+## D-036 · Rahim at the market, late and announced
+Rahim arrives 90 sim-seconds after the player enters the haat, with a rumour line 20 s before. This gives a fair "sell fast" window. In the bazaar he walks a route past the stalls. If the player stays near him while carrying his items in view, a recognition meter fills (≤ 32/s): a warning at 35, and at 100 he raises the alarm and the watchman gives chase. Moving away or ducking behind stalls drains it.
+
+## D-037 · The market watchman sprints at 4.6 m/s (village patrol: 5.0)
+Found by the full browser run. With the shared NPC sprint of 5.0 m/s, a thief carrying only Rahim's lantern (5.18 m/s) barely out-ran the watchman, and any hesitation meant a catch. GAME_DESIGN §4 promises that a light-load escape is always possible. The watchman is an older man with a lathi working through a crowd, so `MARKET_RULES.watchmanRunSpeed = 4.6`. Bolting for a gate at once with a light ঝোলা works, while a heavily loaded thief (full load: 3.1 m/s) is still caught. Unit-tested in `phase3.test.ts`.
+
+## D-038 · Camera cutout (dithered dissolve) instead of only pulling the camera in
+The visual tour showed the interior camera jammed at its 0.7 m minimum (the ceiling collider), and a thin prop filling the frame at the back wall. Every world material from `mat()` (and the painted signs) gets a small shader patch (`effects/cameraCutout.ts`). Fragments near the camera→thief sight line, or within 0.7 m of the lens, are discarded with a screen-space dither. Ground materials are excluded so the floor never opens. Indoors the camera ignores the house shell (new `HOUSE_SHELL` collider tag; walls still block movement, NPC sight and hearing) and uses a cutaway preset (3.7 m, pitch 0.78), so the small room is seen from outside through a cut-away wall. Cinematic cameras (menu, preparation, dawn) switch the cut off. Cost: one varying and a few ALU ops per fragment; no extra passes.
+
+## D-039 · Character GLB pipeline: spec contract, code-generated placeholder, procedural fallback
+Blender is unavailable (not installed; the download was blocked), so no artist asset can be produced in this environment. Instead:
+1. A strict contract (`BLENDER_CHARACTER_SPEC.md`: bone names, clip names, axes, metadata, budgets) plus Blender export/import scripts.
+2. A **code-generated** placeholder GLB that meets it (`scripts/assets/build-placeholder-thief.mjs`), clearly labelled in its own metadata as not artist-made.
+3. A runtime (`GlbCharacter`, `clipSelect`) that any conforming GLB drops into.
+
+The procedural `HumanRig` remains the loading state and the automatic fallback: a HEAD probe for a missing file, an error boundary for a broken one. It is also a Settings option. Draco is off, because drei would fetch its decoder from a CDN; mesh quantization decodes natively.
+
+## D-040 · Animation controller: one pure mapping, speed-synced, phase-preserving
+`chooseClip(state)` is a pure, unit-tested function from (movement mode, speed, action pose, load) to (clip, loop, time scale, fade). Missing spec clips resolve through a fallback table, never to nothing. The component only cross-fades when the chosen clip changes (no per-frame restarts). It runs in `useFrame`, outside React renders. Locomotion plays at actual speed ÷ the clip's authored speed (from GLB metadata), the D-011 anti-foot-slide rule. Walk↔run switches keep the stride phase so feet stay planted through the blend.
+
+## D-041 · The thief faces where the player steers
+The heading used to follow actual velocity, so sliding along a wall turned him sideways. It now follows the input direction while there is input (actual velocity otherwise), and reversals over 90° turn 1.5× faster.
+
+## D-042 · Run ids include the start time
+`run-${seed}-${startTime}`. With seed-only ids, two runs with the same seed collided and the persistence dedupe silently dropped the second result. Found by the outcomes browser test.
+
+## D-043 · Vegetation variety is cosmetic only
+Bamboo has 3 near variants and 2 low-detail far variants; palms and bushes have 2 each; per-instance height jitter comes from a position hash. Positions, scales used by colliders, and the layout/nav tests are unchanged. Village triangles rose from 148k to 180k (the first attempt, 310k, was rejected as too heavy for phones).

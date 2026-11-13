@@ -4,7 +4,7 @@ import { useHudStore } from '../../state/useHudStore';
 import { useRunStore } from '../../state/useRunStore';
 import type { InteractionKind } from '../../game/systems/InteractionSystem';
 
-const ACTION_LABEL: Record<InteractionKind, string> = { inspect: 'দেখুন', pick_up: 'তুলে নাও', enter: 'ঢোকো', exit: 'বের হও', hide: 'লুকাও', talk: 'কথা', sell: 'বেচো' };
+const ACTION_LABEL: Record<InteractionKind, string> = { inspect: 'দেখুন', pick_up: 'তুলে নাও', enter: 'ঢোকো', exit: 'বের হও', hide: 'লুকাও', talk: 'দরদাম', sell: 'বেচো' };
 import type { InputController } from '../../game/controls/InputController';
 import { adaptiveJoystickRadius, normalizeJoystick } from '../../game/controls/joystickMath';
 
