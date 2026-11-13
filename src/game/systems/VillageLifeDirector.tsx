@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { BoxGeometry, CanvasTexture, MeshStandardMaterial, SpriteMaterial, type Group, type Sprite } from 'three';
+import { BoxGeometry, CanvasTexture, Euler, Matrix4, MeshStandardMaterial, Quaternion, SpriteMaterial, Vector3, type BufferGeometry, type Group, type Sprite } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, RigidBody, useBeforePhysicsStep } from '@react-three/rapier';
 import { useAppStore } from '../../state/useAppStore';
@@ -72,6 +73,21 @@ function labelTexture(text: string, color: string): CanvasTexture {
 }
 
 const BOX = new BoxGeometry(1, 1, 1);
+
+/** Boxes merged into one geometry (one draw call per material per animated part). */
+function boxes(parts: [pos: [number, number, number], scale: [number, number, number], rot?: [number, number, number]][]): BufferGeometry {
+  return mergeGeometries(
+    parts.map(([p, sc, r]) => BOX.clone().applyMatrix4(new Matrix4().compose(new Vector3(...p), new Quaternion().setFromEuler(new Euler(...(r ?? [0, 0, 0]))), new Vector3(...sc)))),
+  )!;
+}
+
+/** Measured: the dog was 11 draw calls; merged per material and animated part it is 6 (D-062). */
+const DOG_GEO = {
+  body: boxes([[[0, 0.18, 0], [0.32, 0.26, 0.62]], [[-0.1, 0.06, 0.22], [0.08, 0.12, 0.2]], [[0.1, 0.06, 0.22], [0.08, 0.12, 0.2]]]),
+  headFur: boxes([[[0, 0, 0], [0.22, 0.2, 0.22]]]),
+  headDark: boxes([[[0, -0.03, 0.15], [0.11, 0.09, 0.12]], [[-0.08, 0.12, -0.02], [0.06, 0.1, 0.03], [0, 0, 0.4]], [[0.08, 0.12, -0.02], [0.06, 0.1, 0.03], [0, 0, -0.4]]]),
+  tail: boxes([[[0, 0.05, -0.08], [0.05, 0.05, 0.2], [0.7, 0, 0]]]),
+};
 
 /** A scruffy village dog (procedural, two shared materials). */
 function VillageDog() {
@@ -154,20 +170,14 @@ function VillageDog() {
         <CuboidCollider args={[0.22, 0.25, 0.42]} position={[0, 0.25, 0]} />
       </RigidBody>
       <group ref={body}>
-        <mesh geometry={BOX} material={looks.fur} position={[0, 0.18, 0]} scale={[0.32, 0.26, 0.62]} castShadow />
-        {[-0.1, 0.1].map((x) => (
-          <mesh key={x} geometry={BOX} material={looks.fur} position={[x, 0.06, 0.22]} scale={[0.08, 0.12, 0.2]} />
-        ))}
+        <mesh geometry={DOG_GEO.body} material={looks.fur} castShadow />
       </group>
       <group ref={head} position={[0, 0.16, 0.36]}>
-        <mesh geometry={BOX} material={looks.fur} scale={[0.22, 0.2, 0.22]} castShadow />
-        <mesh geometry={BOX} material={looks.dark} position={[0, -0.03, 0.15]} scale={[0.11, 0.09, 0.12]} />
-        {[-0.08, 0.08].map((x) => (
-          <mesh key={x} geometry={BOX} material={looks.dark} position={[x, 0.12, -0.02]} rotation={[0, 0, x > 0 ? -0.4 : 0.4]} scale={[0.06, 0.1, 0.03]} />
-        ))}
+        <mesh geometry={DOG_GEO.headFur} material={looks.fur} castShadow />
+        <mesh geometry={DOG_GEO.headDark} material={looks.dark} />
       </group>
       <group ref={tail} position={[0, 0.26, -0.32]}>
-        <mesh geometry={BOX} material={looks.fur} position={[0, 0.05, -0.08]} rotation={[0.7, 0, 0]} scale={[0.05, 0.05, 0.2]} />
+        <mesh geometry={DOG_GEO.tail} material={looks.fur} />
       </group>
       <sprite ref={icon} material={looks.z} position={[0, 0.75, 0]} scale={[0.32, 0.32, 0.32]} />
     </group>

@@ -262,81 +262,61 @@ export function EntryOverlay({ runtime }: { runtime: GameRuntime }) {
     if (!finished.current) goTo('night');
   };
 
+  // Compact strip at the bottom: the 3D scene (the thief swinging his tool, flying dirt, the
+  // growing hole in the wall) stays visible — the action IS the feedback. Tap anywhere on the strip.
   return (
-    <div className="safe-pad pointer-events-none fixed inset-0 z-20 flex items-end justify-center sm:items-center" data-testid="entry-overlay">
+    <div className="safe-pad pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-end" data-testid="entry-overlay">
+      <p className="mb-1 h-7 text-center text-xl font-semibold [@media(max-height:500px)]:!text-base [@media(max-height:500px)]:!h-6 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" role="status">
+        {judgement && (
+          <span key={judgement.id} className={`caption-in ${judgement.kind === 'perfect' || judgement.kind === 'good' ? 'text-gold' : 'text-danger'}`}>
+            {judgement.text}
+          </span>
+        )}
+      </p>
       <div
-        className="panel pointer-events-auto relative mb-2 w-full max-w-sm touch-none select-none p-4 sm:mb-0"
+        className="pointer-events-auto relative mb-1 flex w-full max-w-2xl touch-none select-none items-center gap-3 rounded-2xl border border-moon/20 bg-hud/70 p-2 backdrop-blur-sm sm:gap-4 sm:p-3 [@media(max-height:500px)]:max-w-xl [@media(max-height:500px)]:gap-2 [@media(max-height:500px)]:!p-1.5"
         onPointerDown={(e) => {
           if ((e.target as HTMLElement).closest('button')) return;
           e.preventDefault();
           tap(e.timeStamp);
         }}
       >
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-gold">সিঁধ কাটা — ছন্দ মেলাও</h2>
-          <button type="button" className="min-h-11 rounded-lg px-3 py-2 text-sm text-moon underline" onClick={abort} data-testid="entry-abort">
+        <svg viewBox="0 0 240 240" className="h-20 w-20 shrink-0 sm:h-24 sm:w-24 [@media(max-height:500px)]:!h-14 [@media(max-height:500px)]:!w-14" aria-hidden>
+          <circle cx="120" cy="120" r={TARGET_R + PULSE_SPAN} fill="rgba(0,0,0,0.3)" />
+          <circle ref={targetRef} cx="120" cy="120" r={TARGET_R} fill="none" stroke="#f2ad55" strokeWidth="8" />
+          <circle ref={pulseRef} cx="120" cy="120" r={TARGET_R + PULSE_SPAN} fill="none" stroke="#f6f1e8" strokeWidth="5" />
+          <text x="120" y="132" textAnchor="middle" fontSize="34" fill="#f6f1e8">
+            {done === 'success' ? '✓' : done === 'failed' ? '✗' : resting ? 'জিরাই' : 'চাপো'}
+          </text>
+        </svg>
+        <div className="min-w-0 flex-1 space-y-1 text-xs sm:text-sm [@media(max-height:500px)]:space-y-0.5 [@media(max-height:500px)]:!text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate font-semibold text-gold [@media(max-height:500px)]:hidden">সিঁধ কাটা — ছন্দ মেলাও</span>
+            <span className="truncate text-moon" data-testid="entry-tool">
+              {tool.icon} {tool.nameBn}
+            </span>
+          </div>
+          <Meter label="অগ্রগতি" barRef={progressRef} className="bg-gold" />
+          <div ref={noiseWrapRef}>
+            <Meter label="🔊 শব্দ" note="১০০ = ধরা পড়ার ভয়" barRef={noiseRef} className="bg-danger" />
+          </div>
+          <div data-testid="entry-stamina">
+            <Meter label="💨 দম" note="ক্লান্ত হলে কোপ দুর্বল" barRef={staminaRef} initial="100%" style={{ backgroundColor: '#7fd17f' }} />
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col gap-1.5 [@media(max-height:500px)]:flex-row">
+          <button type="button" className={`btn !min-h-11 !px-3 !text-sm ${resting ? 'btn-primary' : 'btn-ghost'}`} onClick={toggleRest} aria-pressed={resting} data-testid="entry-rest">
+            {resting ? 'আবার শুরু' : 'জিরাও'} <span className="hidden text-xs opacity-70 sm:inline">(R)</span>
+          </button>
+          <button type="button" className="btn btn-ghost !min-h-11 !px-3 !text-sm" onClick={abort} data-testid="entry-abort">
             থামো
           </button>
         </div>
-        <p className="mb-1 text-center text-xs text-moon" data-testid="entry-tool">
-          {tool.icon} {tool.nameBn}
-          {tool.tradeoffBn !== '—' && <span className="text-moon/70"> · {tool.tradeoffBn}</span>}
-        </p>
-        <svg viewBox="0 0 240 240" className="mx-auto h-44 w-44 sm:h-52 sm:w-52" aria-hidden>
-          <circle cx="120" cy="120" r={TARGET_R + PULSE_SPAN} fill="rgba(0,0,0,0.25)" />
-          <circle ref={targetRef} cx="120" cy="120" r={TARGET_R} fill="none" stroke="#f2ad55" strokeWidth="8" />
-          <circle ref={pulseRef} cx="120" cy="120" r={TARGET_R + PULSE_SPAN} fill="none" stroke="#f6f1e8" strokeWidth="5" />
-          <text x="120" y="128" textAnchor="middle" fontSize="22" fill="#f6f1e8">
-            {done === 'success' ? '✓' : done === 'failed' ? '✗' : resting ? 'জিরাই…' : 'চাপো'}
-          </text>
-        </svg>
-        <div className="mt-2 space-y-2 text-sm">
-          <div>
-            <div className="mb-1 flex justify-between">
-              <span>অগ্রগতি</span>
-            </div>
-            <div className="h-3 overflow-hidden rounded-full bg-black/40">
-              <div ref={progressRef} className="h-full rounded-full bg-gold" style={{ width: '0%' }} />
-            </div>
-          </div>
-          <div ref={noiseWrapRef}>
-            <div className="mb-1 flex justify-between">
-              <span>🔊 শব্দ</span>
-              <span className="text-moon">১০০ হলে ধরা পড়ার ভয়!</span>
-            </div>
-            <div className="h-3 overflow-hidden rounded-full bg-black/40">
-              <div ref={noiseRef} className="h-full rounded-full bg-danger" style={{ width: '0%' }} />
-            </div>
-          </div>
-          <div data-testid="entry-stamina">
-            <div className="mb-1 flex justify-between">
-              <span>💨 দম</span>
-              <span className="text-moon">ক্লান্ত হলে কোপ দুর্বল</span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-black/40">
-              <div ref={staminaRef} className="h-full rounded-full" style={{ width: '100%', backgroundColor: '#7fd17f' }} />
-            </div>
-          </div>
-        </div>
-        <p className="mt-2 h-6 text-center font-semibold" role="status">
-          {judgement && (
-            <span key={judgement.id} className={`caption-in ${judgement.kind === 'perfect' || judgement.kind === 'good' ? 'text-gold' : 'text-danger'}`}>
-              {judgement.text}
-            </span>
-          )}
-        </p>
-        <button
-          type="button"
-          className={`btn mt-1 w-full ${resting ? 'btn-primary' : 'btn-ghost'}`}
-          onClick={toggleRest}
-          aria-pressed={resting}
-          data-testid="entry-rest"
-        >
-          {resting ? 'আবার শুরু (R)' : 'জিরাও — দম নাও (R)'}
-        </button>
-        <p className="mt-1 text-center text-xs text-moon">Space / E / ট্যাপ — Esc: বিরতি</p>
-        {hint && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl bg-hud/95 p-5 text-center" data-testid="entry-hint">
+      </div>
+      <p className="mb-1 hidden text-center text-xs text-moon drop-shadow sm:block [@media(max-height:500px)]:!hidden">Space / E / ট্যাপ — R: জিরাও — Esc: বিরতি</p>
+      {hint && (
+        <div className="pointer-events-auto fixed inset-0 z-30 grid place-items-center bg-black/30 p-4" data-testid="entry-hint">
+          <div className="panel flex max-w-sm flex-col items-center gap-3 p-5 text-center">
             <p className="text-lg font-semibold text-gold">কীভাবে খেলবে</p>
             <p className="leading-relaxed">{ENTRY_LINES.hint}</p>
             <p className="text-sm leading-relaxed text-moon">প্রতি কোপে দম খরচ হয় — ক্লান্ত হলে “জিরাও”। জিরানোর সময় ছন্দ থামে, শব্দ কমে, কিন্তু রাত গড়ায়।</p>
@@ -353,8 +333,20 @@ export function EntryOverlay({ runtime }: { runtime: GameRuntime }) {
               শুরু করো
             </button>
           </div>
-        )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Meter({ label, note, barRef, className = '', initial = '0%', style }: { label: string; note?: string; barRef: React.RefObject<HTMLDivElement | null>; className?: string; initial?: string; style?: React.CSSProperties }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-16 shrink-0 sm:w-20">{label}</span>
+      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-black/50">
+        <div ref={barRef} className={`h-full rounded-full ${className}`} style={{ width: initial, ...style }} />
       </div>
+      {note && <span className="hidden shrink-0 text-[11px] text-moon lg:inline">{note}</span>}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { buildCatchSequence, CATCH_DURATION, CATCH_SKIP_AFTER } from '../game/au
 import { EntryChallenge, entryConfigFor } from '../game/systems/entryChallenge';
 import { HOUSE_PROFILES } from '../game/data/houses';
 import { digClipPhase, DIG_IMPACT } from '../game/characters/glb/clipSelect';
-import { Stamina, energyAfterNight, staminaParams } from '../game/systems/stamina';
+import { ADRENALINE, Stamina, energyAfterNight, staminaParams } from '../game/systems/stamina';
 import { buyEquipment, buySupply, createProfile, eat, equip, equippedMods, nap, nextHeat, settleRun, startNight, type Profile, type RunSettlement } from '../game/systems/progression';
 import { EQUIPMENT, EQUIPMENT_BY_ID, ENERGY_RULES, FOODS, STAMINA_RULES } from '../game/data/economy';
 import { canCarry, CARRY_CAPACITY_KG, type InventoryItem } from '../game/systems/inventory';
@@ -158,6 +158,18 @@ describe('VoiceDirector', () => {
     at(6.5);
     d.update();
     expect(p.started).toEqual(['mojnu.alarm.0']);
+  });
+  it('gameplay-critical info lines are not cut off; the urgent line plays right after', () => {
+    const { d, p, at } = setup({ 'thief.entry.cooldown': 2, 'rahim.wake.1': 1.5 });
+    at(0);
+    d.speak('thief.entry.cooldown'); // info, priority 2
+    expect(d.speak('rahim.wake.1')).toBe('queued'); // priority 3 waits
+    expect(p.stopped).toEqual([]);
+    at(2.0);
+    d.update();
+    at(2.2);
+    d.update();
+    expect(p.started).toEqual(['thief.entry.cooldown', 'rahim.wake.1']);
   });
   it('uses the rough variant only when enabled; stopAll silences crowd voices too', () => {
     const { d, p, s, at } = setup();
@@ -320,6 +332,30 @@ describe('stamina and energy', () => {
     s.value = 3;
     expect(s.spend(6)).toBeCloseTo(0.75);
     expect(s.exhausted).toBe(true);
+  });
+  it('adrenaline: a chase never starts exhausted, and chase sprinting drains at half rate (escape stays possible)', () => {
+    const s = new Stamina(staminaParams(0)); // worst case: zero energy
+    for (let i = 0; i < 100; i++) s.step(0.1, true);
+    expect(s.canSprint).toBe(false);
+    s.adrenaline();
+    expect(s.canSprint).toBe(true);
+    expect(s.value).toBeCloseTo(s.params.max * ADRENALINE.floor);
+    const a = new Stamina(staminaParams(50));
+    const b = new Stamina(staminaParams(50));
+    a.step(1, true, 0, false, true);
+    b.step(1, true);
+    expect(a.params.max - a.value).toBeCloseTo((b.params.max - b.value) * ADRENALINE.chaseDrain);
+    // From the floor, an unloaded thief at zero energy can still sprint for > 4 s (≈ 6 m gained on a 5 m/s chaser at 5.6 m/s, plus breaking sight).
+    const c = new Stamina(staminaParams(0));
+    c.value = 0;
+    c.exhausted = true;
+    c.adrenaline();
+    let secs = 0;
+    while (c.canSprint && secs < 30) {
+      c.step(0.1, true, 0, false, true);
+      secs += 0.1;
+    }
+    expect(secs).toBeGreaterThan(4);
   });
   it('energy after a night reflects exertion and never goes below the floor', () => {
     expect(energyAfterNight(80, 0, 0)).toBe(80 - ENERGY_RULES.nightBase);

@@ -17,6 +17,9 @@ export function staminaParams(energy: number, mods: EquipMods = {}, buff: FoodEf
   return { max, regenPerSec: regen, sprintDrainPerSec: S.sprintDrainPerSec * (mods.sprintCost ?? 1), digCost: S.digCost * (mods.entryStamina ?? 1) };
 }
 
+/** While chased, sprinting costs this fraction of the normal drain (fear-driven legs). */
+export const ADRENALINE = { floor: 0.6, chaseDrain: 0.5 } as const;
+
 export class Stamina {
   value: number;
   /** True after running dry until recovered to `recoverAt` (sprint locked meanwhile). */
@@ -46,11 +49,11 @@ export class Stamina {
    * Advance `dt` seconds. `sprinting` drains (more with load); otherwise regenerates after a short
    * delay (`resting` = deliberately catching breath, faster). Returns true on the frame it runs dry.
    */
-  step(dt: number, sprinting: boolean, load = 0, resting = false): boolean {
+  step(dt: number, sprinting: boolean, load = 0, resting = false, chased = false): boolean {
     if (dt <= 0) return false;
     let ranDry = false;
     if (sprinting && this.canSprint) {
-      this.value -= this.params.sprintDrainPerSec * (1 + STAMINA_RULES.loadDrain * clamp(load, 0, 1)) * dt;
+      this.value -= this.params.sprintDrainPerSec * (1 + STAMINA_RULES.loadDrain * clamp(load, 0, 1)) * (chased ? ADRENALINE.chaseDrain : 1) * dt;
       this.sprintSeconds += dt;
       this.sinceSpend = 0;
       if (this.value <= 0) {
@@ -75,6 +78,15 @@ export class Stamina {
     this.sinceSpend = 0;
     if (this.value <= 0) this.exhausted = true;
     return before >= amount ? 1 : 0.5 + 0.5 * (before / Math.max(amount, 1e-6));
+  }
+
+  /**
+   * Adrenaline at the start of a chase (GAME_DESIGN §4 guarantee: an unloaded escape is always
+   * possible): stamina jumps to at least 60 % and the exhaustion lock clears. Once per chase.
+   */
+  adrenaline(): void {
+    this.value = Math.max(this.value, this.params.max * ADRENALINE.floor);
+    this.exhausted = false;
   }
 
   /** Instant refill (a supply snack). */

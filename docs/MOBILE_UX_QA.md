@@ -21,7 +21,7 @@ Screenshots are written to `test-results/phase4b-touch/`.
 | Handedness | right-handed only | **left-handed layout** mirrors stick and buttons |
 | Sprint feedback | — | sprint button dims and shows 😮‍💨 while out of breath |
 | Stamina and energy | — | compact HUD bar (re-renders only on 5 % steps); snack button appears only when carrying one |
-| Tool challenge | tap anywhere on the panel | plus a full-width **জিরাও (rest)** button and a 44 px **থামো (retreat)** button; `select-none` stops long-press text selection |
+| Tool challenge | a large centred panel that **hid the digging** (owner feedback) | compact bottom strip, so the 3D swing, dirt and hole stay visible; the camera is beside the thief; 44 px **জিরাও** and **থামো** buttons; even more compact on screens ≤ 500 px tall (D-062); `select-none` stops long-press selection |
 | Safehouse / shop | — | bottom sheet ≤ 68 dvh on phones (side panel on wide screens), scrollable list, 56 px rows, tabs at 44 px, status toast with `aria-live`; nothing depends on hover (trade-offs are printed under each item) |
 | Results / brief | — | bank summary and tonight's brief fit at 360 px width |
 | Audio mix | one volume | master / ambience / SFX / voice sliders (h-10 range inputs) |
