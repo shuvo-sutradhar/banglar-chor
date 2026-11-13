@@ -207,3 +207,66 @@
 - Phase 3 suites not re-run this session.
 
 **Next exact task:** play nights 1–3 and review the screenshots and feel. Then decide on voice recording (human actors, or a licensed voice service with the owner's approval), and on NPCs on the shared rig.
+
+## Phase 4C: voice pipeline, sound design, NPC efficiency, mobile, release stabilisation (2026-11-14)
+**Baseline** (build from `b8127cd`, recorded before any change):
+
+| Suite | Result |
+|---|---|
+| check | 170/170 |
+| phase4b / phase4b-touch | 34/34 · 51/51 |
+| premium | 15/16 |
+| smoke | 33/35 |
+| phase2 | 32 + 4 fail, aborted |
+| phase3-full, phase3-outcomes, phase3-touch | all aborted early |
+
+**Git.** A fast-forward of `main` to `phase-4b-final` is possible; it was not merged (owner's decision).
+
+**Done:**
+- **Voice production** (VOICE_PRODUCTION.md):
+  - pipeline: up to 4 takes per line, never the same take twice in a row; rough lines fall back to family takes; must-hear lines preloaded;
+  - mandatory `credits.json`: uncredited recordings are not shipped; synthetic voices can't be passed off as human;
+  - the recording script is ordered by production priority;
+  - read-only check of the connected voice-generation service. No Bengali voices are listed, nothing was generated, no cost.
+- **Sound design** (AUDIO_DIRECTION §8): surface footsteps with per-step variation, bamboo knocks and creaks at real groves, pickups by item kind, three non-repeating suspicion stings, chase hubbub from the chaser.
+- **NPC efficiency** (D-064):
+  - runtime skinned batching that keeps every character's look; rig groups act as bones;
+  - unit tests prove the batched characters are visually identical;
+  - A/B: bazaar 329 → **165** draw calls, village with NPCs 313 → **256**;
+  - distant rigs pose every 3rd frame.
+- **Dialogue.** Instruction lines interrupt equal-priority reactions and are never cut off by urgent lines (D-063 extended).
+- **Mobile:**
+  - press feedback (scale and brighten) and a short haptic tick on context buttons;
+  - inventory and settings ✕ buttons widened to 44 px (found by the new inventory layout check);
+  - trade panel layout checks (landscape) and inventory checks (3 phone sizes).
+- **Test reliability** (no assertion relaxed):
+  - caption log for timed captions;
+  - speed-based sprint check;
+  - outcome-based catch check;
+  - minigame time scale for persuasion; the world slowed with the minigame;
+  - the night clock rewound after waiting for the patrol;
+  - forced clicks where Playwright's stability wait starves at ~1.5 FPS;
+  - diagnostics on failure;
+  - **new `smoke:multinight`**: 3 consecutive nights with meals, purchases, equipment switches, buffs and reloads.
+
+**Final results** (headless Edge, machine at ~93 % CPU from other applications):
+
+| Suite | Result |
+|---|---|
+| check (tsc, eslint, unit) | **179/179** |
+| build | ✔ |
+| smoke:multinight (new) | **16/16** |
+| smoke:phase4b | **34/34** |
+| smoke:phase4b-touch | **57/57** |
+| smoke:phase3-outcomes | **19/19** (was aborted) |
+| smoke:phase3-touch | **13/13** (was aborted) |
+| smoke:premium | **16/16** |
+| smoke (Phase 1) | **35/35** |
+| smoke:phase2 | **55/55** |
+| smoke:phase3 (full, patrol enabled) | **does not complete.** The patrol spots the thief on the way to the wall ("ঝোপের মধ্যে কে?"). The same in the baseline and in every earlier session; needs a normal-speed machine to judge |
+
+**Not done / limits:**
+- No voice recordings.
+- NPC models are still the procedural low-poly rigs: same look, now cheaper. No new Blender NPC exists.
+- No physical-device tests.
+- The village has ~256 draw calls, mostly scenery.

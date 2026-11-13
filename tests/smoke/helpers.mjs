@@ -111,10 +111,10 @@ export async function completePreparation(page, cdp, { touch = false } = {}) {
 
 /** Start a run: preparation via skip if available, else played properly. */
 export async function startRun(page, cdp) {
-  await page.getByTestId('start-button').click();
-  await page.getByTestId('prep-overlay').waitFor();
+  await page.getByTestId('start-button').click({ force: true, timeout: 90000 });
+  await page.getByTestId('prep-overlay').waitFor({ timeout: 60000 });
   if (await page.getByTestId('prep-skip').isVisible().catch(() => false)) {
-    await page.getByTestId('prep-skip').click();
+    await page.getByTestId('prep-skip').click({ force: true, timeout: 60000 });
     await page.waitForFunction(() => window.__sidhel?.snapshot().player !== null, null, { timeout: 20000 });
     await wait(1800);
     return 'skipped';
@@ -260,10 +260,16 @@ export async function playEntrySkilled(page, cdp) {
   // trips take seconds at headless frame rates; all judging rules are unchanged.
   const prev = await page.evaluate(() => window.__sidhel.minigameTimeScale?.() ?? 1);
   await page.evaluate(() => window.__sidhel.setMinigameTimeScale?.(0.25));
+  // Slow the world with it (physics frame-step cap), so NPCs don't get 4× the time relative to
+  // the rhythm (in an NPC-enabled night the patrol would otherwise finish its loop mid-dig).
+  await precise(page, true);
   try {
     await playEntrySkilledInner(page, cdp);
+    const e = (await snap(page)).entry;
+    if (e && e.status !== 'success') console.log(`info  entry after skilled play: ${JSON.stringify(e)}`);
   } finally {
     await page.evaluate((v) => window.__sidhel?.setMinigameTimeScale?.(v), prev).catch(() => {});
+    await precise(page, false).catch(() => {});
   }
 }
 

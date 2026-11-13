@@ -97,3 +97,20 @@ Real FPS on a desktop GPU and a mid-range Android phone, thermal behaviour, GPU 
 - **Muting saves memory.** It saves ~1.8 MB of JS heap (no node churn) in this sample.
 - **Ambience is not counted.** "SFX events/s" counts one-shot `audio.play` calls; ambience-bed scheduling runs on a 5 Hz timer and isn't included.
 - **Not measured here:** input latency on device, real GPU time, audio CPU in the browser's audio thread, thermal behaviour. They need real hardware (MOBILE_UX_QA §4).
+
+## 8. Phase 4C: NPC batching, before → after (measured, same build, A/B via `?nobatch=1`)
+| Scene (headless SwiftShader, High) | Before (unbatched) | After (batched) | Change |
+|---|---|---|---|
+| Village night with the patrol and Rahim, spawn view (`npm run perf:npc`) | 313 draw calls · 195k tris | **256** · 198k | −57 calls (−18 %) |
+| The two village NPC rigs themselves | 66 draws | **7** | −89 % |
+| Bazaar arrival: merchants, crowd, watchman (`phase3-touch` log) | 329 calls · 44.7k tris · 46 textures | **165** · 45.7k · 58 | **−164 calls (−50 %)** |
+| Rig pose CPU (village, 2 rigs) | 0.007–0.033 ms/frame | 0.017–0.038 ms/frame | within noise (adds skeleton matrices, saves draw submissions) |
+| JS heap (village) | 28.5–31.1 MB | 28.8–39.8 MB | noisy between samples; merged geometries are ~tens of KB per rig |
+
+**Frame time.** p50 ≈ 265–470 ms and p95 ≈ 394–1,630 ms, dominated by SwiftShader's CPU rasterisation on a 93 %-loaded 4-core machine. **The FPS differences between variants are inside the noise**, so this environment cannot measure a frame-rate gain from batching. Draw-call submission is mostly a CPU/driver cost on real GPUs, so the 50 % bazaar reduction is the relevant result for phones. It still needs device confirmation.
+
+**Distant-NPC pose LOD.** Rigs more than 22 m from the camera pose every 3rd frame (same motion speed, ⅓ of the pose CPU). The bazaar crowd benefits most.
+
+**Audio overhead (unchanged design, measured in Phase 4B).** Ambience runs on a 5 Hz scheduler. One-shot events are 0–7/s (footsteps while running). Muted buses build no nodes.
+
+**Remaining.** Village ~256, bazaar ~165 calls. The 150 target is close in the bazaar. In the village the remaining calls are mostly scenery (vegetation, buildings), not characters. Per the brief, visual quality was not sacrificed to hit an arbitrary number.

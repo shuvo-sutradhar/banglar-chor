@@ -64,3 +64,12 @@ Not done here, so not claimed:
   - phone-speaker balance of the ambience vs dialogue subtitles.
 - **Performance and power:** sustained 30 FPS on a mid-range Android, thermal throttling over 20 minutes, and battery drain. See PERFORMANCE_BUDGETS.md: **no real-device FPS has been measured**.
 - **Accessibility:** readability of 11 px secondary text outdoors; with OS font scaling at 130 %.
+
+## 5. Phase 4C additions
+- **Press feedback.** Context buttons now shrink and brighten while pressed, with an 8 ms haptic tick where supported (Android Chrome; iOS ignores it).
+- **44 px close buttons.** The inventory ✕ and settings ✕ were 40 px wide; now 44. This was found by the new automated inventory check.
+- **Automated (emulated):**
+  - inventory sheet fits and its buttons are ≥ 44 px at 390×844, 844×390 and 360×740;
+  - the trade sheet fits the 844×390 landscape phone, and all trade buttons are ≥ 44 px;
+  - plus all Phase 4B touch checks (57/57).
+- **Emulation only.** All of this ran in Edge's mobile emulation (touch events, DPR 2, viewport sizes), **not on physical phones**. §4 still applies in full.

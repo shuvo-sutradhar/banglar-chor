@@ -33,3 +33,7 @@ No third-party models, textures, HDRIs or animations were used. Tooling (not shi
 | Safehouse set, village dog, dirt clods | Procedural three.js meshes in code | Original |
 
 Still no third-party models, textures, sounds, voices or animations.
+
+## Phase 4C
+- **Voice credits file.** Recorded voices must be listed in `public/assets/audio/voice/credits.json` (performer or licensed voice source, plus licence); `npm run voice:manifest` refuses uncredited files. It is currently empty, because no recordings exist.
+- **New sounds are original.** The new SFX (surface footsteps, bamboo, pickups, chase hubbub) are synthesised at runtime; no samples.
