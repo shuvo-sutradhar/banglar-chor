@@ -152,3 +152,27 @@ The heading used to follow actual velocity, so sliding along a wall turned him s
 
 ## D-043 · Vegetation variety is cosmetic only
 Bamboo has 3 near variants and 2 low-detail far variants; palms and bushes have 2 each; per-instance height jitter comes from a position hash. Positions, scales used by colliders, and the layout/nav tests are unchanged. Village triangles rose from 148k to 180k (the first attempt, 310k, was rejected as too heavy for phones).
+
+## D-044 · Blender is available; the thief is built by Blender Python into an editable .blend (Phase 4A)
+Blender 5.3.0 is installed at `C:\Program Files\Blender Foundation\Blender 5.3\blender.exe` (not on PATH) and was verified headless: Python API, EEVEE renders, Cycles baking, glTF export. The thief is produced by scripts that run *inside Blender* (`assets-source/blender/scripts/thief/`): box modelling with bmesh, a skin-modifier body, IK-authored animation baked with Blender's NLA bake, Cycles texture bakes. Why: no human sculpting is possible in this session, and a scripted build is reproducible and reviewable. Consequence: `thief.blend` is a normal editable file, but the full build regenerates it; once an artist edits it by hand, use `--export-only`. Quality was judged from rendered previews, not from the export succeeding (limitations listed in BLENDER_CHARACTER_SPEC.md).
+
+## D-045 · Hero triangle budget 13,000 (was 6,000)
+The Blender thief is 12,428 triangles (face, 4-finger hands, folded lungi). There is one hero instance; it costs the same 3 draw calls as the placeholder. Measured in the village (headless, same viewpoint): +13k triangles (179k → 192k, +7 %), identical draw calls, FPS within noise. NPCs that share the rig stay at ≤ 6,000 (PERFORMANCE_BUDGETS.md).
+
+## D-046 · Animation authored with IK, shipped as baked FK
+Feet are always IK (stance feet move backward at exactly the authored speed; heel/ball roll pivots keep the contact point fixed); hands are IK only in clips where they must hit targets (pickup, tying, caught, moustache twirl, crawl). Everything is baked to FK keys on deform bones and the control bones are deleted, so the GLB is a plain skeleton. Measured planted-foot error ≤ 0.004 m/s on Walk/Run/CrouchWalk/Sneak/Carry. The A-pose elbow has a 2.2 cm rest bend: a perfectly straight chain gave IK no bend direction (arms straightened and overshot targets by ~17 cm).
+
+## D-047 · Lungi weights by thigh proximity (sprint clipping fix)
+Lungi vertices follow the hips at the waist and blend to the nearer thigh (Gaussian on distance to each thigh axis) below, with a 45 % shin share under the knee; centre panels split 50/50; `lungi_front`/`lungi_back` carry secondary swing. `qa_character.py` measures it per clip: **0 leg vertices outside the cloth with the lungi tucked (1.0) or half-failed (0.8) in all 18 clips**, which is every night/bazaar state (prep success = 1.0, prep failure = 0.8, skip = 1.0). The long lungi still clips in deep poses; it only appears in the preparation scene, whose clips (Idle, Oil, Gamcha) measure 0.
+
+## D-048 · Texture and memory policy for character GLBs
+Base colour atlases 1024² (JPEG in the GLB), one 512² ORM only where roughness varies (skin: hair/eyes glossier); cloth uses a constant roughness (a map was dropped: −1 texture, −1.4 MB GPU). On the **Low** quality tier the runtime downscales the instance's textures to 512² (12 MB → 4 MB GPU estimate); the full-size originals in the loader cache are never rendered, so never uploaded. KTX2/Basis is deferred: it needs a bundled transcoder (no CDN) and real-device testing.
+
+## D-049 · Fallback chain and runtime-driven blink
+`thief.glb` → `thief_placeholder.glb` → procedural rig (probe per file, error boundary per model). The `Blink` shape key is driven by the runtime (fast close, slower open, random 2–5.5 s, occasional double blink); the placeholder has no `Blink`, so the code is a no-op there.
+
+## D-050 · Sparse morph targets
+glTF morph targets store a delta for every vertex; `LungiTuck` and `Blink` move ~10 % of them. `optimize-glb.mjs` now writes sparse accessors (three.js reads them natively): 1,566 KB → 1,250 KB.
+
+## D-051 · Character performance counters
+`perfCounters.ts` times procedural rig updates (`rig`) and the thief mixer (`mixer`) separately from rendering; `__sidhel.perf()`/`resetPerf()` and the snapshot's `thief.stats/loadMs` feed `tests/visual/perf-thief.mjs`. Cost: one `performance.now()` pair per rig per frame.

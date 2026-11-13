@@ -35,6 +35,7 @@ try {
   await page.waitForFunction(() => window.__sidhel.snapshot().thief?.anim !== null, null, { timeout: 30000 }).catch(() => {});
   let t = await anim(page);
   check('model: thief GLB loaded in the game (not the fallback)', t.visual === 'model' && t.error === null && t.anim?.clips >= 18, JSON.stringify(t));
+  check('model: it is the Blender thief (thief.glb) with its Blink shape key', /\/thief\.glb$/.test(t.url ?? '') && t.anim?.blink === true, JSON.stringify(t));
   // Preparation stage 1 (oil): the rubbing clip plays when a hit lands.
   const seen = new Set();
   for (let i = 0; i < 25; i++) {
@@ -121,6 +122,7 @@ try {
   const errors2 = [];
   p2.on('pageerror', (e) => errors2.push(String(e)));
   await p2.route('**/thief_placeholder.glb', (r) => r.fulfill({ status: 404, body: 'missing' }));
+  await p2.route('**/characters/thief.glb', (r) => r.fulfill({ status: 404, body: 'missing' }));
   const cdp2 = await cdpFor(p2);
   void cdp2;
   await openGame(p2, BASE, '&nonpc=1&seed=5');

@@ -21,7 +21,9 @@
     "validate:glb": "node scripts/assets/validate-glb.mjs",
     "tour": "node tests/smoke/visual-tour.mjs",
     "shoot:glb": "node tests/visual/shoot-glb.mjs",
-    "smoke:premium": "node tests/smoke/premium.mjs"
+    "smoke:premium": "node tests/smoke/premium.mjs",
+    "assets:thief": "node scripts/assets/build-thief.mjs",
+    "perf:thief": "node tests/visual/perf-thief.mjs"
   },
   "dependencies": {
     "@fontsource/hind-siliguri": "^5.3.0",

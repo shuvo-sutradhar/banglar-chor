@@ -13,3 +13,12 @@ All 3D geometry, textures and the favicon are original. They are generated proce
 | Camera cutout shader, compact marker glow | Code | — |
 
 Tooling (dev-only, not shipped): `@gltf-transform/core|functions|extensions` 4.2.1 (MIT).
+
+## Phase 4A additions (all original, made in Blender by this project's scripts)
+| Asset | Made by | Notes |
+|---|---|---|
+| `assets-source/blender/characters/thief.blend` | Blender 5.3.0, `assets-source/blender/scripts/thief/build_thief.py` | Original character design (no references to other games/brands). Editable source with packed textures |
+| `public/assets/models/characters/thief.glb` (1,215 KB, 12.4k tris, 32 joints, 18 clips) | Exported by `export_character.py`, optimised with glTF Transform | Original; replaces the placeholder as the default thief |
+| `assets-source/blender/characters/textures/Thief_Skin_BaseColor.png`, `Thief_Skin_ORM.png`, `Thief_Cloth_BaseColor.png` | Cycles bakes of procedural materials (vertex paint, tartan/gamcha checks, eyes, hair) | Original. The lungi and gamcha check patterns are generic traditional checks, designed in code |
+
+No third-party models, textures, HDRIs or animations were used. Tooling (not shipped): Blender 5.3.0 (GPL; outputs are ours), glTF Transform 4.2.1 (MIT).

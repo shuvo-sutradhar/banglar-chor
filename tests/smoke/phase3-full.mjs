@@ -3,7 +3,7 @@
 // failed negotiation → successful sale → recognition → market chase → escape → results → reload.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import {
+import { approachSidh,
   pickItem,
   cdpFor, chooseItem, face, launch, makeChecker, openGame, persuade, playEntrySkilled, ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT,
   snap, startRun, talkTo, wait, walkPath,
@@ -44,6 +44,8 @@ async function pick(page, it) {
 const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 const page = await ctx.newPage();
+// --placeholder: hide thief.glb so the old placeholder GLB loads (before/after comparisons).
+if (process.argv.includes('--placeholder')) await page.route('**/characters/thief.glb', (r) => r.fulfill({ status: 404, body: 'missing' }));
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -63,8 +65,7 @@ try {
   let s = await snap(page);
   check('night: patrol NPC active (NPC-enabled run)', Boolean(mojnu(s)));
   s = await waitForMojnu(page, northbound, 'heading north on the road');
-  await walkPath(page, ROUTE_TO_BACK_WALL, { run: true, timeout: 25000, stopWhen: async () => (await snap(page)).app.phase !== 'night' });
-  await face(page, -14.6, 6);
+  await approachSidh(page, { stopWhen: async () => (await snap(page)).app.phase !== 'night' });
   await page.keyboard.press('KeyE');
   await page.getByTestId('entry-overlay').waitFor({ timeout: 8000 });
   if (await page.getByTestId('entry-hint').isVisible().catch(() => false)) await page.getByTestId('entry-start').click();
@@ -106,7 +107,7 @@ try {
   check('bazaar: skip moves to the bazaar zone without a reload', s.zone === 'bazaar' && s.player !== null && s.market !== null);
   check('continuity: exactly the surviving items arrive (same instance ids)', JSON.stringify(s.run.inventoryIds) === JSON.stringify(nightInventory), s.run.inventoryIds.join(','));
   check('bazaar: watchman present; shoppers/merchants populate the haat', s.npcs.some((n) => n.id === "watchman") && s.listeners.interactions >= 3, `brain npcs=${s.listeners.npcs}, interaction targets=${s.listeners.interactions}`);
-  console.log(`info  draw calls — village ${villageCalls}, bazaar ${s.render.calls} (headless, quality auto→high)`);
+  console.log(`info  draw calls — village ${villageCalls}, bazaar ${s.render.calls} (headless, quality auto→high); triangles bazaar ${s.render.triangles}; thief ${s.thief.url ?? s.thief.visual}`);
   await shot(page, 'F2-bazaar-arrive');
 
   // ---------------- Scenario 5: failed negotiation (Jalil, lantern) ----------------

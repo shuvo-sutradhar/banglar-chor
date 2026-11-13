@@ -8,6 +8,8 @@ import { cdpFor, face, launch, openGame, playEntrySkilled, ROUTE_TO_EXIT, snap, 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
 const OUT = process.argv[3] ?? 'test-results/tour';
 const MOBILE = process.argv.includes('--mobile');
+// --placeholder: hide thief.glb so the old placeholder GLB loads (before/after comparisons).
+const PLACEHOLDER = process.argv.includes('--placeholder');
 mkdirSync(OUT, { recursive: true });
 
 const browser = await launch();
@@ -15,6 +17,7 @@ const ctx = await browser.newContext(
   MOBILE ? { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } : { viewport: { width: 1280, height: 720 } },
 );
 const page = await ctx.newPage();
+if (PLACEHOLDER) await page.route('**/characters/thief.glb', (r) => r.fulfill({ status: 404, body: 'missing' }));
 const cdp = await cdpFor(page);
 const metrics = [];
 
@@ -45,6 +48,11 @@ try {
   await walkPath(page, [[-1, 13.2], [-7, 13.4], [-16.8, 13.2], [-16.8, 6], [-15.4, 6]], { timeout: 25000 });
   await face(page, -14.6, 6);
   await view('05-rahim-back-wall', -Math.PI / 2 + 0.6);
+  // Same robust final approach as the Phase 2 suite: at headless frame rates the walk can stop
+  // short of the sidh trigger, so step in tightly and wait for the focus before pressing E.
+  await walkPath(page, [[-15.4, 6]], { tol: 0.3, timeout: 8000 });
+  await face(page, -14.6, 6);
+  await page.waitForFunction(() => window.__sidhel.snapshot().hud.focus === 'rahim-sidh', null, { timeout: 5000 }).catch(() => {});
   await page.keyboard.press('KeyE');
   await page.getByTestId('entry-overlay').waitFor({ timeout: 8000 });
   if (await page.getByTestId('entry-hint').isVisible().catch(() => false)) await page.getByTestId('entry-start').click();

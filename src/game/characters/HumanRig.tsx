@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 import { MeshStandardMaterial, type Group, type Material } from 'three';
 import { useFrame } from '@react-three/fiber';
+import { timed } from '../perfCounters';
 import { damp } from '../../lib/math';
 import { useAppStore } from '../../state/useAppStore';
 import { UNIT_BOX, UNIT_CYLINDER, UNIT_SPHERE } from '../world/sharedGeometry';
@@ -92,7 +93,7 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
   const phase = useRef(0);
   const breath = useRef(0);
 
-  useFrame((_, rawDt) => {
+  const tick = (rawDt: number) => {
     if (useAppStore.getState().paused) return;
     const dt = Math.min(rawDt, 0.1);
     driver.actionTime += dt;
@@ -346,7 +347,8 @@ export function HumanRig({ driver, look }: { driver: RigDriver; look: Appearance
       look.skin.roughness = 0.62 - 0.38 * oil;
       look.skin.metalness = 0.02 + 0.12 * oil;
     }
-  });
+  };
+  useFrame((_, rawDt) => timed('rig', () => tick(rawDt)));
 
   const skin = look.skin;
   const torso = look.top ?? skin;

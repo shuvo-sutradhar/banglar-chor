@@ -176,6 +176,22 @@ export const ROUTE_TO_BACK_WALL = [
   [-16.8, 6],
   [-15.4, 6],
 ];
+/**
+ * Walk to Rahim's back wall and stand at the sidh, robust on a loaded machine: each waypoint in
+ * order (a timed-out waypoint is retried once with a longer budget), then a tight final step,
+ * face the wall and wait for the sidh focus. Returns the HUD focus id.
+ */
+export async function approachSidh(page, { run = true, stopWhen } = {}) {
+  for (const p of ROUTE_TO_BACK_WALL) {
+    if (stopWhen && (await stopWhen())) return null;
+    if (!(await walkPath(page, [p], { run, timeout: 25000, stopWhen }))) await walkPath(page, [p], { timeout: 40000, stopWhen });
+  }
+  await walkPath(page, [[-15.4, 6]], { tol: 0.3, timeout: 8000 });
+  await face(page, -14.6, 6);
+  await page.waitForFunction(() => window.__sidhel.snapshot().hud.focus === 'rahim-sidh', null, { timeout: 5000 }).catch(() => {});
+  return (await snap(page)).hud.focus;
+}
+
 export const ROUTE_TO_EXIT = [
   [-16.8, 6],
   [-16.8, 13.2],

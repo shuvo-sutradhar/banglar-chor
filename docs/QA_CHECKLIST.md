@@ -10,7 +10,11 @@
 - [x] `npm run smoke:phase3-touch` — touch bargaining, recognition, market catch
 - [x] `npm run smoke:premium` — thief GLB in game: clip state follows gameplay, live toggle, missing-file fallback
 - [x] `npm run validate:glb` and the GLB unit test — skeleton, clips, metadata, triangle budget
-- [x] `npm run tour` (desktop and `--mobile`) — before/after screenshots and draw calls at fixed viewpoints
+- [x] `npm run tour` (desktop and `--mobile`) — before/after screenshots and draw calls at fixed viewpoints (Phase 4A note: the tour currently times out at the entry minigame step for both thief variants; it captured spawn → back-wall viewpoints only. Fix the tour's entry step before the next art pass.)
+- [x] `npm run assets:thief` — rebuild the Blender thief (build → export → optimise → validate → QA)
+- [x] `qa_character.py` (run by `assets:thief`) — lungi clipping per clip × tuck state, planted-foot sliding per locomotion clip
+- [x] `npm run perf:thief [-- --npcs]` — A/B: Blender thief (High/Low) vs placeholder vs procedural: FPS, draw calls, triangles, thief GPU texture MB, load ms, JS heap, mixer vs rig CPU ms/frame
+- [x] `render_previews.py` — EEVEE review images of any view/clip/tuck (docs/screenshots/phase4a/)
 
 ## Manual — still required on real hardware (not yet performed)
 Mark with device, browser and date when done.
@@ -67,3 +71,12 @@ Mark with device, browser and date when done.
 - [ ] Footstep / coin / grumble audio levels on phone speakers
 - [ ] Draw calls and frame time in the bazaar on a mid-range Android (NPC rigs are the largest cost)
 - [ ] **Artist review** of the placeholder thief vs the character spec (it is code-generated, not final art)
+
+### Phase 4A: Blender thief (needs a human / real hardware)
+- [ ] **Artist review** of the Blender thief against BLENDER_CHARACTER_SPEC.md §1 (face appeal, hands, silhouette) — see the "Remaining artistic limitations" list
+- [ ] Animation feel at 60 Hz on a real display: Walk/Run/Sneak foot contact, Caught and Celebrate timing, blink frequency
+- [ ] Lungi: tucked lungi during a long sprint and deep crouch from the gameplay camera (automated check: 0 clipping verts)
+- [ ] The headband shows only after the gamcha prep stage; oil shine visible on skin
+- [ ] Desktop GPU: steady 60 FPS on High in the village and the bazaar (record FPS and GPU)
+- [ ] Mid-range Android: ≥ 30 FPS on Auto (Low/Medium); thief textures should report 512² on Low (`__sidhel.snapshot().thief.stats`)
+- [ ] First-load time of `thief.glb` (1.2 MB) on a 4G connection; check it is cached on the second visit

@@ -5,11 +5,12 @@ import { statSync } from 'node:fs';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 
-const file = process.argv[2] ?? 'public/assets/models/characters/thief_placeholder.glb';
+const file = process.argv[2] ?? 'public/assets/models/characters/thief.glb';
 const REQUIRED_BONES = ['root', 'hips', 'spine', 'chest', 'neck', 'head', 'shoulder_L', 'upperarm_L', 'forearm_L', 'hand_L', 'shoulder_R', 'upperarm_R', 'forearm_R', 'hand_R', 'thigh_L', 'shin_L', 'foot_L', 'thigh_R', 'shin_R', 'foot_R'];
 const REQUIRED_CLIPS = ['Idle', 'Walk', 'Run'];
 const SPEC_CLIPS = ['CrouchIdle', 'CrouchWalk', 'Sneak', 'Interact', 'Pickup', 'Carry', 'PreparationOil', 'PreparationLungi', 'PreparationGamcha', 'Suspicious', 'Frightened', 'ChaseReaction', 'Caught', 'Celebrate', 'Crawl'];
-const BUDGET = { triangles: 6000, sizeKB: 1536, bones: 40 };
+// Hero budget raised for the Blender model (D-044): one instance, 3 draw calls.
+const BUDGET = { triangles: 13000, sizeKB: 1536, bones: 40 };
 
 const errors = [];
 const warnings = [];

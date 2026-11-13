@@ -138,3 +138,16 @@ export function parseMeta(raw: unknown): CharacterMeta | null {
 export function missingRequiredClips(available: ReadonlySet<string>): string[] {
   return REQUIRED_CLIPS.filter((c) => !available.has(c));
 }
+
+/** Eyelid closure 0..1 for a blink that started `t` seconds ago (fast close, slower open). */
+export const BLINK_DURATION = 0.18;
+export function blinkAmount(t: number): number {
+  if (t < 0 || t >= BLINK_DURATION) return 0;
+  const close = BLINK_DURATION * 0.35;
+  return t < close ? t / close : 1 - (t - close) / (BLINK_DURATION - close);
+}
+
+/** Seconds until the next blink (2–5.5 s, `r` in 0..1); occasionally a quick double blink. */
+export function nextBlinkDelay(r: number): number {
+  return r < 0.12 ? 0.32 : 2 + r * 3.5;
+}

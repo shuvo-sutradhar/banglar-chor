@@ -5,9 +5,8 @@ Sidhel Chor - export a character .blend to a runtime GLB that meets docs/BLENDER
         -P assets-source/blender/scripts/export_character.py -- \
         --out public/assets/models/characters/thief.glb
 
-UNVERIFIED: written without access to Blender (it was not installed and downloading it was blocked
-in the session that produced this file). It uses only long-standing bpy APIs (Blender 3.6+ glTF
-exporter options). Run it once, then `npm run validate:glb -- <out>` to check the result.
+Verified with Blender 5.3.0 (Phase 4A). Then run `npm run assets:optimize -- <out>` and
+`npm run validate:glb -- <out>`.
 """
 import json
 import sys
@@ -74,12 +73,21 @@ def main():
 
     # Spec metadata -> glTF extras on the armature node.
     speeds = dict(DEFAULT_SPEEDS)
+    meta = {}
     if "sidhel" in arm:
         try:
-            speeds.update(json.loads(arm["sidhel"]).get("clipSpeeds", {}))
+            meta = json.loads(arm["sidhel"])
+            speeds.update(meta.get("clipSpeeds", {}))
         except (TypeError, ValueError):
-            pass
-    arm["sidhel"] = json.dumps({"version": 1, "clipSpeeds": speeds})
+            meta = {}
+    meta.update({"version": meta.get("version", 1), "clipSpeeds": speeds})
+    arm["sidhel"] = json.dumps(meta)
+    # Rest pose for export, every shape key at 0 (the runtime drives them).
+    arm.animation_data.action = None
+    for o in bpy.data.objects:
+        if o.type == "MESH" and o.data.shape_keys:
+            for kb in o.data.shape_keys.key_blocks[1:]:
+                kb.value = 0.0
 
     # Apply object transforms on meshes so scale is exactly 1 m = 1 unit.
     for o in bpy.data.objects:
@@ -102,6 +110,11 @@ def main():
         export_texcoords=True,
         export_normals=True,
         export_materials="EXPORT",
+        export_image_format=arg("--images", "JPEG"),
+        export_jpeg_quality=int(arg("--jpeg-quality", "88")),
+        export_attributes=False,
+        export_def_bones=False,
+        export_optimize_animation_size=True,
     )
     print("exported", out)
 

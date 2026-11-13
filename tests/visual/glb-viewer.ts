@@ -2,7 +2,7 @@ import { AmbientLight, AnimationMixer, Box3, Color, DirectionalLight, GridHelper
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const q = new URLSearchParams(location.search);
-const url = q.get('url') ?? '/assets/models/characters/thief_placeholder.glb';
+const url = q.get('url') ?? '/assets/models/characters/thief.glb';
 const clipName = q.get('clip') ?? 'Idle';
 const t = Number(q.get('t') ?? '0');
 const yaw = Number(q.get('yaw') ?? '0.5');

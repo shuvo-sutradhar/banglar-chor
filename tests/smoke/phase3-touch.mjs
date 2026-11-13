@@ -2,7 +2,7 @@
 // a recognition, and getting CAUGHT at the market (confiscation + fine) → results.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { cdpFor, completePreparation, face, launch, makeChecker, openGame, playEntrySkilled, ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, wait, walkPath, BAZAAR_PATHS, MERCHANT_SPOT } from './helpers.mjs';
+import { approachSidh, cdpFor, completePreparation, face, launch, makeChecker, openGame, playEntrySkilled, ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, wait, walkPath, BAZAAR_PATHS, MERCHANT_SPOT } from './helpers.mjs';
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
 const SHOTS = process.argv[3] ?? 'test-results/phase3';
@@ -13,6 +13,8 @@ const shot = (page, name) => page.screenshot({ path: join(SHOTS, `${name}.png`) 
 const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
 const page = await ctx.newPage();
+// --placeholder: hide thief.glb so the old placeholder GLB loads (before/after comparisons).
+if (process.argv.includes('--placeholder')) await page.route('**/characters/thief.glb', (r) => r.fulfill({ status: 404, body: 'missing' }));
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 const cdp = await cdpFor(page);
@@ -47,9 +49,7 @@ try {
   await completePreparation(page, cdp, { touch: true });
   check('touch: mobile controls shown', await page.getByTestId('mobile-controls').isVisible());
   // Night (movement by keys for path precision; interactions with the touch action button)
-  await walkPath(page, ROUTE_TO_BACK_WALL, { run: true, timeout: 25000 });
-  await face(page, -14.6, 6);
-  await page.waitForFunction(() => window.__sidhel.snapshot().hud.focus === 'rahim-sidh', null, { timeout: 5000 }).catch(() => {});
+  await approachSidh(page);
   await page.getByTestId('touch-action').tap();
   await page.getByTestId('entry-overlay').waitFor({ timeout: 8000 });
   if (await page.getByTestId('entry-hint').isVisible().catch(() => false)) await page.getByTestId('entry-start').tap();
@@ -83,6 +83,11 @@ try {
   await page.getByTestId('to-dawn').tap({ timeout: 10000 });
   await page.getByTestId('dawn-skip').tap({ timeout: 10000 });
   await page.waitForFunction(() => window.__sidhel.snapshot().app.phase === 'bazaar', null, { timeout: 15000 });
+  {
+    await wait(2500);
+    const m = await snap(page);
+    console.log(`info  bazaar arrival render: calls ${m.render.calls}, triangles ${m.render.triangles}, textures ${m.render.textures}; thief ${m.thief.url ?? m.thief.visual}`);
+  }
   await wait(1500);
 
   // Bazaar: talk to Hashem with the touch action button

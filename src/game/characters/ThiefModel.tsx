@@ -3,7 +3,7 @@ import { useAppStore } from '../../state/useAppStore';
 import { HumanRig } from './HumanRig';
 import { THIEF_LOOK } from './appearances';
 import { GlbCharacter } from './glb/GlbCharacter';
-import { probeThief, thiefVisual } from './glb/thiefAsset';
+import { resolveThiefUrl, thiefVisual } from './glb/thiefAsset';
 import type { RigDriver } from './rigTypes';
 
 
@@ -27,9 +27,10 @@ function Procedural({ driver }: { driver: RigDriver }) {
   return <HumanRig driver={driver} look={THIEF_LOOK} />;
 }
 
-function Model({ driver }: { driver: RigDriver }) {
+function Model({ driver, url }: { driver: RigDriver; url: string }) {
   thiefVisual.kind = 'model';
-  return <GlbCharacter driver={driver} />;
+  thiefVisual.url = url;
+  return <GlbCharacter driver={driver} url={url} />;
 }
 
 /**
@@ -40,24 +41,25 @@ function Model({ driver }: { driver: RigDriver }) {
  */
 export function ThiefModel({ driver }: { driver: RigDriver }) {
   const choice = useAppStore((s) => s.settings.characterModel);
-  const [available, setAvailable] = useState<boolean | null>(null);
+  // undefined = still probing, null = no model file found.
+  const [url, setUrl] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let live = true;
-    void probeThief().then((ok) => {
+    void resolveThiefUrl().then((u) => {
       if (!live) return;
-      if (!ok) thiefVisual.error = 'model file not found';
-      setAvailable(ok);
+      if (!u) thiefVisual.error = 'model file not found';
+      setUrl(u);
     });
     return () => {
       live = false;
     };
   }, []);
   const procedural = <Procedural driver={driver} />;
-  if (choice === 'procedural' || available !== true) return procedural;
+  if (choice === 'procedural' || !url) return procedural;
   return (
     <ModelFallback fallback={procedural}>
       <Suspense fallback={procedural}>
-        <Model driver={driver} />
+        <Model driver={driver} url={url} />
       </Suspense>
     </ModelFallback>
   );

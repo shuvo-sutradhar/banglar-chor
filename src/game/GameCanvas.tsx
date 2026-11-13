@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useState } from 'react';
+import { readPerf, resetPerf } from './perfCounters';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Physics, useRapier } from '@react-three/rapier';
 import { PCFSoftShadowMap, type BufferGeometry, type Material, type Mesh, type Points } from 'three';
@@ -98,12 +99,15 @@ function DebugBridge() {
         trade: debugHooks.trade?.() ?? null,
         persuade: debugHooks.persuade?.() ?? null,
         dawn: debugHooks.dawn?.() ?? null,
-        thief: { visual: thiefVisual.kind, error: thiefVisual.error, anim: debugHooks.anim?.() ?? null },
+        thief: { visual: thiefVisual.kind, error: thiefVisual.error, url: thiefVisual.url, loadMs: thiefVisual.loadMs, stats: thiefVisual.stats, anim: debugHooks.anim?.() ?? null },
         lastResult: useAppStore.getState().lastResult,
         savedRuns: useAppStore.getState().runs.length,
         render: { calls: gl.info.render.calls, triangles: gl.info.render.triangles, geometries: gl.info.memory.geometries, textures: gl.info.memory.textures },
         listeners: { noise: runtime.noise.listenerCount, interactions: runtime.interactions.size, npcs: runtime.npcs.size },
       }),
+      /** Animation CPU counters (procedural rigs vs the thief's mixer), see perfCounters.ts. */
+      perf: () => readPerf(),
+      resetPerf: () => resetPerf(),
       setCameraYaw: (yaw: number) => {
         runtime.camera.yaw = yaw;
       },

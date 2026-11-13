@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MeshLambertMaterial, MeshStandardMaterial, ShaderLib, type WebGLProgramParametersWithUniforms } from 'three';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { ACTION_CLIPS, CARRY_CLIP_THRESHOLD, chooseClip, missingRequiredClips, parseMeta, resolveClip, syncedTimeScale } from '../game/characters/glb/clipSelect';
+import { ACTION_CLIPS, BLINK_DURATION, blinkAmount, CARRY_CLIP_THRESHOLD, chooseClip, missingRequiredClips, nextBlinkDelay, parseMeta, resolveClip, syncedTimeScale } from '../game/characters/glb/clipSelect';
 import { applyCutout, CUTOUT } from '../game/effects/cameraCutout';
 import type { ActionPose } from '../game/characters/rigTypes';
 
@@ -75,6 +75,43 @@ describe('thief GLB asset (placeholder) meets the character spec', () => {
     const meta = root.listNodes().map((n) => parseMeta((n.getExtras() as { sidhel?: unknown }).sidhel)).find(Boolean);
     expect(meta?.clipSpeeds.Walk).toBeGreaterThan(0);
     expect(meta?.clipSpeeds.Run).toBeGreaterThan(meta!.clipSpeeds.Walk!);
+  });
+});
+
+describe('thief GLB asset (Blender, Phase 4A) meets the character spec', () => {
+  it('has the skeleton, all 18 clips, shape keys, two materials, metadata and the hero budget', async () => {
+    const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+    const doc = await io.read('public/assets/models/characters/thief.glb');
+    const root = doc.getRoot();
+    const joints = new Set(root.listSkins().flatMap((s) => s.listJoints().map((j) => j.getName())));
+    for (const b of ['root', 'hips', 'spine', 'chest', 'neck', 'head', 'jaw', 'brow_L', 'brow_R', 'upperarm_L', 'forearm_L', 'hand_L', 'fingers_L', 'thumb_L', 'thigh_L', 'shin_L', 'foot_L', 'toe_L', 'thigh_R', 'shin_R', 'foot_R', 'lungi_front', 'lungi_back', 'gamcha_tail']) expect(joints.has(b), b).toBe(true);
+    expect(joints.size).toBeLessThanOrEqual(40);
+    // Authoring-only IK controls must not ship.
+    for (const j of joints) expect(j.startsWith('ik_') || j.startsWith('pole_'), j).toBe(false);
+    const clips = new Set(root.listAnimations().map((a) => a.getName()));
+    for (const c of ALL) expect(clips.has(c), c).toBe(true);
+    let tris = 0;
+    for (const m of root.listMeshes()) for (const p of m.listPrimitives()) tris += (p.getIndices()?.getCount() ?? 0) / 3;
+    expect(tris).toBeLessThanOrEqual(13000);
+    const targets = root.listMeshes().flatMap((m) => ((m.getExtras() as { targetNames?: string[] }).targetNames ?? []));
+    expect(targets).toEqual(expect.arrayContaining(['LungiTuck', 'Blink']));
+    expect(new Set(root.listMaterials().map((m) => m.getName()))).toEqual(new Set(['Thief_Skin', 'Thief_Cloth']));
+    expect(root.listNodes().some((n) => n.getName() === 'Headband' && n.getMesh())).toBe(true);
+    // Shape keys default to 0 (the runtime drives them).
+    for (const m of root.listMeshes()) for (const w of m.getWeights()) expect(w).toBe(0);
+    const meta = root.listNodes().map((n) => parseMeta((n.getExtras() as { sidhel?: unknown }).sidhel)).find(Boolean);
+    expect(meta?.clipSpeeds).toMatchObject({ Walk: 1.5, Run: 4.2, CrouchWalk: 0.9, Sneak: 1.1, Carry: 1.5, Crawl: 0.6 });
+  });
+});
+
+describe('eye blink', () => {
+  it('closes fast, opens slower, and is zero outside the blink', () => {
+    expect(blinkAmount(-0.1)).toBe(0);
+    expect(blinkAmount(BLINK_DURATION * 0.35)).toBeCloseTo(1, 5);
+    expect(blinkAmount(BLINK_DURATION)).toBe(0);
+    expect(blinkAmount(BLINK_DURATION * 0.2)).toBeGreaterThan(0.5);
+    expect(nextBlinkDelay(0.5)).toBeGreaterThanOrEqual(2);
+    expect(nextBlinkDelay(0.05)).toBeLessThan(0.5);
   });
 });
 

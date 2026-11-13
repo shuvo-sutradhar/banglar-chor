@@ -3,7 +3,7 @@
 // caught at night by the patrol → no market, documented penalties.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { cdpFor, face, launch, makeChecker, openGame, playEntrySkilled, ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, startRun, wait, walkPath } from './helpers.mjs';
+import { approachSidh, cdpFor, face, launch, makeChecker, openGame, playEntrySkilled, ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, startRun, wait, walkPath } from './helpers.mjs';
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
 const SHOTS = process.argv[3] ?? 'test-results/phase3';
@@ -12,8 +12,7 @@ const { results, check } = makeChecker();
 const shot = (page, name) => page.screenshot({ path: join(SHOTS, `${name}.png`) });
 
 async function enterHouse(page, cdp) {
-  await walkPath(page, ROUTE_TO_BACK_WALL, { run: true, timeout: 25000 });
-  await face(page, -14.6, 6);
+  await approachSidh(page);
   await page.keyboard.press('KeyE');
   await page.getByTestId('entry-overlay').waitFor({ timeout: 8000 });
   if (await page.getByTestId('entry-hint').isVisible().catch(() => false)) await page.getByTestId('entry-start').click();

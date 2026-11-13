@@ -47,6 +47,15 @@
 - [x] Stage 3 integration: GLB thief + animation controller (D-039/D-040) with procedural fallback; camera cutout (D-038); lighting; audio cues; draw-call breakdown hook.
 - [x] Stage 4 QA: all suites re-run on the final build, before/after tour screenshots (desktop + mobile).
 
+## Phase 4A: Blender character production — ✅ thief built, integrated, measured (awaiting review)
+- [x] Blender located and verified: 5.3.0 at `C:\Program Files\Blender Foundation\Blender 5.3\blender.exe` (headless, Python, EEVEE, Cycles bake, glTF). Earlier scripts re-run: `import_placeholder.py` ✔, `export_character.py` ✔ (placeholder round-trip valid).
+- [x] Original thief modelled, rigged, weighted, animated and textured in Blender (`assets-source/blender/characters/thief.blend`, scripts in `assets-source/blender/scripts/thief/`). 12,428 tris, 32 joints, 2 materials, 3 textures, shape keys `LungiTuck` + `Blink`.
+- [x] 18 clips (all spec clips incl. the 15 requested + Suspicious, ChaseReaction, Crawl), IK-authored, baked to FK. Planted-foot error ≤ 0.004 m/s; lungi clipping 0 verts in all clips when tucked (D-047).
+- [x] GLB exported and optimised: `public/assets/models/characters/thief.glb`, 1,215 KB, validated against the spec. Placeholder kept as fallback (`thief.glb` → placeholder → procedural).
+- [x] Runtime: blink driver, Low-tier texture cap (512²), perf counters; no movement/physics/camera changes.
+- [x] Budgets and before/after measurements: `docs/PERFORMANCE_BUDGETS.md`.
+- [ ] Artist polish (sculpt/normal maps, face loops, UV layout, animation polish) — see BLENDER_CHARACTER_SPEC.md "Remaining artistic limitations".
+
 ## Phase 4: Polish
 - [ ] Audio + captions
 - [ ] Art/FX
