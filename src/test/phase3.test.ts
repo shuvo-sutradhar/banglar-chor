@@ -282,8 +282,9 @@ describe('local persistence v2', () => {
     const v1 = JSON.stringify({ version: 1, settings: { ...createDefaultDocument().settings, quality: 'low' }, preparationDone: true, nickname: 'বাবলু' });
     const loaded = new PersistenceService(memoryStorage({ [SAVE_KEY]: v1 })).load();
     expect(loaded.notice).toBe('none');
-    expect(loaded.document.version).toBe(2);
+    expect(loaded.document.version).toBe(3); // v1 → v2 → v3 (Phase 4B)
     expect(loaded.document.settings.quality).toBe('low');
+    expect(loaded.document.profile.bank).toBe(0);
     expect(loaded.document.preparationDone).toBe(true);
     expect(loaded.document.nickname).toBe('বাবলু');
     expect(loaded.document.runs).toEqual([]);

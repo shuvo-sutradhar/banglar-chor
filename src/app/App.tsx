@@ -7,6 +7,7 @@ import { createGameRuntime, resetRuntimeForRun } from '../game/GameRuntime';
 import { useRunStore } from '../state/useRunStore';
 import { CONTROL_PHASES, WORLD_PHASES } from '../state/useAppStore';
 import { audio } from '../game/audio/AudioManager';
+import { loadVoiceAvailability, setSubtitleSink, voice } from '../game/audio/voice';
 import { crawlOutOfRahimHouse } from '../game/systems/nightActions';
 import { CRAWL_INSIDE } from '../game/data/rahimHouse';
 import { PreparationOverlay } from './screens/PreparationOverlay';
@@ -16,6 +17,7 @@ import { NightResolution } from './screens/NightResolution';
 import { DawnOverlay } from './screens/DawnOverlay';
 import { TradePanel } from './screens/TradePanel';
 import { ResultsScreen } from './screens/ResultsScreen';
+import { SafehouseOverlay } from './screens/SafehouseOverlay';
 import { MarketExitPrompt } from './components/MarketExitPrompt';
 import { InventoryPanel } from './components/InventoryPanel';
 import { GameCanvas } from '../game/GameCanvas';
@@ -74,6 +76,10 @@ function GameRoot() {
   const inventoryOpen = useRunStore((s) => s.inventoryOpen);
   const volume = useAppStore((s) => s.settings.volume);
   const muted = useAppStore((s) => s.settings.muted);
+  const ambienceVolume = useAppStore((s) => s.settings.ambienceVolume);
+  const sfxVolume = useAppStore((s) => s.settings.sfxVolume);
+  const voiceVolume = useAppStore((s) => s.settings.voiceVolume);
+  const roughDialogue = useAppStore((s) => s.settings.roughDialogue);
   const [fading, setFading] = useState(false);
 
   useEffect(() => {
@@ -103,16 +109,41 @@ function GameRoot() {
   }, []);
 
   useEffect(() => {
-    audio.setVolume(volume, muted);
-  }, [volume, muted]);
+    audio.setMix({ master: volume, muted, ambience: ambienceVolume, sfx: sfxVolume, voice: voiceVolume });
+  }, [volume, muted, ambienceVolume, sfxVolume, voiceVolume]);
+
+  // Dialogue: subtitles go to the HUD caption (timed to playback); the director advances on a
+  // light timer (not per frame); recorded files are discovered once.
+  useEffect(() => {
+    setSubtitleSink({ show: (text, speaker, ms) => useHudStore.getState().showCaption(text, speaker, ms), clear: (id) => useHudStore.getState().clearCaption(id) });
+    void loadVoiceAvailability();
+    const timer = window.setInterval(() => {
+      if (!useAppStore.getState().paused) voice.update();
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    voice.rough = roughDialogue;
+  }, [roughDialogue]);
+
+  // Camera yaw → stereo panning of world sounds.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const l = audio.listenerPos;
+      audio.setListener(l.x, l.z, runtime.camera.yaw);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [runtime]);
 
   useEffect(() => {
     audio.setSuspended(paused);
+    if (paused) voice.stopAll();
   }, [paused]);
 
   useEffect(() => {
     const zone = useAppStore.getState().zone;
-    if (phase === 'dawn' || ((phase === 'bazaar' || phase === 'bargain' || phase === 'chase' || phase === 'caught') && zone === 'bazaar')) audio.startAmbience(phase === 'dawn' ? 'morning' : 'market');
+    if (phase === 'safehouse') audio.startAmbience('safehouse');
+    else if (phase === 'dawn' || ((phase === 'bazaar' || phase === 'bargain' || phase === 'chase' || phase === 'caught') && zone === 'bazaar')) audio.startAmbience(phase === 'dawn' ? 'morning' : 'market');
     else if (WORLD_PHASES.includes(phase) || phase === 'preparation') audio.startAmbience('night');
     else audio.stopAmbience();
   }, [phase]);
@@ -184,6 +215,7 @@ function GameRoot() {
       {phase === 'bargain' && <TradePanel runtime={runtime} />}
       {phase === 'bazaar' && <MarketExitPrompt runtime={runtime} />}
       {phase === 'results' && <ResultsScreen />}
+      {phase === 'safehouse' && <SafehouseOverlay />}
       {controls && inventoryOpen && !paused && <InventoryPanel runtime={runtime} />}
       {controls && touchUi && !paused && <MobileControls input={runtime.input} />}
       {paused && phase !== 'menu' && <PauseMenu />}

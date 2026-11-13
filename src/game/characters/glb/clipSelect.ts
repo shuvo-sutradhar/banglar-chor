@@ -23,6 +23,10 @@ export const CLIP_FALLBACKS: Record<string, readonly string[]> = {
   ChaseReaction: ['Frightened', 'Idle'],
   Caught: ['Frightened', 'Idle'],
   Celebrate: ['Idle'],
+  // Phase 4B
+  Dig: ['Interact', 'Idle'],
+  Tired: ['Idle'],
+  Eat: ['Interact', 'Idle'],
 };
 
 type ActionClip = { clip: string; loop: boolean };
@@ -36,7 +40,7 @@ export const ACTION_CLIPS: Record<ActionPose, ActionClip> = {
   gamcha: { clip: 'PreparationGamcha', loop: true },
   'gamcha-fail': { clip: 'Frightened', loop: false },
   proud: { clip: 'Celebrate', loop: false },
-  dig: { clip: 'Interact', loop: true },
+  dig: { clip: 'Dig', loop: true },
   crawl: { clip: 'Crawl', loop: true },
   pickup: { clip: 'Pickup', loop: false },
   frightened: { clip: 'Frightened', loop: false },
@@ -47,12 +51,23 @@ export const ACTION_CLIPS: Record<ActionPose, ActionClip> = {
   sit: { clip: 'CrouchIdle', loop: true },
   examine: { clip: 'Interact', loop: true },
   wave: { clip: 'Celebrate', loop: false },
+  eat: { clip: 'Eat', loop: true },
+  rest: { clip: 'Tired', loop: true },
 };
+
+/** Fraction of the Dig loop at which the spade strikes (th_anim.py DIG_IMPACT). */
+export const DIG_IMPACT = 0.55;
+
+/** Dig clip phase so the strike frame lands exactly on the next beat. */
+export function digClipPhase(secondsToNextBeat: number, beatInterval: number): number {
+  const p = DIG_IMPACT - secondsToNextBeat / Math.max(beatInterval, 1e-3);
+  return ((p % 1) + 1) % 1;
+}
 
 /** Carried-load ratio from which walking switches to the sack-over-the-shoulder Carry clip. */
 export const CARRY_CLIP_THRESHOLD = 0.85;
 
-export type AnimState = { mode: MovementMode; speed: number; action: ActionPose | null; carry: number };
+export type AnimState = { mode: MovementMode; speed: number; action: ActionPose | null; carry: number; tired?: boolean };
 export type ClipChoice = { clip: string; loop: boolean; timeScale: number; fade: number };
 
 /** First available of `name` and its fallbacks (depth-first), else `Idle`. */
@@ -102,7 +117,8 @@ export function chooseClip(s: AnimState, available: ReadonlySet<string>, clipSpe
       name = 'Walk';
       break;
     default:
-      name = 'Idle';
+      // Out of breath and standing still: hands on knees, panting.
+      name = s.tired ? 'Tired' : 'Idle';
   }
   const clip = resolveClip(name, available);
   const moving = s.mode === 'walk' || s.mode === 'run' || s.mode === 'crouch-walk';

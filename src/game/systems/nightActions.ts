@@ -6,6 +6,7 @@ import { setAction } from '../characters/rigTypes';
 import { CRAWL_INSIDE, CRAWL_MID, CRAWL_OUTSIDE, HEADING_INTO_HOUSE, HEADING_OUT_OF_HOUSE } from '../data/rahimHouse';
 import { THIEF_NAME } from '../data/dialogue';
 import { audio } from '../audio/AudioManager';
+import { speakText } from '../audio/voice';
 
 /** Seconds of sim time before a failed entry can be retried (GAME_DESIGN recovery path). */
 export const ENTRY_RETRY_COOLDOWN = 6;
@@ -15,7 +16,9 @@ export const entryCooldown = { until: 0 };
  * Cross-system night actions (crawl in/out, catch). Plain functions over the stores and the
  * mutable runtime, so 3D components and UI share one implementation.
  */
-export function say(text: string, speaker?: string): void {
+export function say(text: string, speaker?: string, at?: { x: number; z: number }): void {
+  // Manifest dialogue lines are voiced and subtitled by the director (priority, cooldown, sync).
+  if (speakText(text, at)) return;
   useHudStore.getState().showCaption(text, speaker);
 }
 

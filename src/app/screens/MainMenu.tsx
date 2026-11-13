@@ -5,6 +5,9 @@ import { audio } from '../../game/audio/AudioManager';
 /** Title screen over the live 3D village (the canvas orbits behind it). */
 export function MainMenu() {
   const startRun = useAppStore((s) => s.startRun);
+  const goSafehouse = useAppStore((s) => s.goSafehouse);
+  const profile = useAppStore((s) => s.profile);
+  const hasProgress = profile.day > 0 || profile.bank > 0;
   const setOverlay = useAppStore((s) => s.setOverlay);
   const sceneReady = useAppStore((s) => s.sceneReady);
   const nickname = useAppStore((s) => s.nickname);
@@ -24,6 +27,20 @@ export function MainMenu() {
             }} data-testid="start-button">
             {sceneReady ? t('start') : t('loading')}
           </button>
+          {hasProgress && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={!sceneReady}
+              onClick={() => {
+                audio.unlock();
+                goSafehouse();
+              }}
+              data-testid="continue-safehouse"
+            >
+              নিজের উঠানে যাও (৳{profile.bank.toString().replace(/[0-9]/g, (d) => '০১২৩৪৫৬৭৮৯'[Number(d)]!)})
+            </button>
+          )}
           <button type="button" className="btn btn-ghost" onClick={() => setOverlay('help')}>
             {t('howToPlay')}
           </button>

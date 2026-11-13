@@ -14,6 +14,8 @@ import { blinkAmount, chooseClip, isGait, missingRequiredClips, nextBlinkDelay, 
 
 
 type Runtime = {
+  /** Hand tools by equipment id (bone-parented Tool_* nodes). */
+  tools: Map<string, Object3D>;
   model: Object3D;
   mixer: AnimationMixer;
   actions: Map<string, AnimationAction>;
@@ -138,7 +140,16 @@ function buildRuntime(scene: Object3D, clips: AnimationClip[], maxTexture = 4096
   sack.visible = false;
   sack.position.set(0.02, 0.0, -0.2);
   found.chest?.add(sack);
+  // Bone-parented hand tools (Tool_<equipment id>), hidden until used.
+  const tools = new Map<string, Object3D>();
+  model.traverse((o) => {
+    if (o.name.startsWith('Tool_')) {
+      tools.set(o.name.slice(5), o);
+      o.visible = false;
+    }
+  });
   return {
+    tools,
     model,
     mixer,
     actions,
@@ -205,7 +216,7 @@ export function GlbCharacter({ driver, url = THIEF_GLB_URL }: { driver: RigDrive
     if (useAppStore.getState().paused) return;
     const dt = Math.min(rawDt, 0.1);
     driver.actionTime += dt;
-    const choice = chooseClip({ mode: driver.mode, speed: driver.horizontalSpeed, action: driver.action, carry: driver.carry ?? 0 }, rt.available, rt.clipSpeeds);
+    const choice = chooseClip({ mode: driver.mode, speed: driver.horizontalSpeed, action: driver.action, carry: driver.carry ?? 0, tired: driver.tired }, rt.available, rt.clipSpeeds);
     const next = rt.actions.get(choice.clip);
     if (next && (!rt.current || rt.current.name !== choice.clip)) {
       const prev = rt.current;
@@ -222,8 +233,15 @@ export function GlbCharacter({ driver, url = THIEF_GLB_URL }: { driver: RigDrive
       if (prev) prev.action.crossFadeTo(next, choice.fade, false);
       rt.current = { name: choice.clip, action: next };
     }
-    if (rt.current) rt.current.action.setEffectiveTimeScale(choice.timeScale);
+    if (rt.current) {
+      // Phase-locked actions (the Dig swing on the rhythm beat) are positioned, not played.
+      const locked = driver.clipPhase !== null && driver.clipPhase !== undefined && driver.action !== null;
+      if (locked) rt.current.action.time = driver.clipPhase! * rt.current.action.getClip().duration;
+      rt.current.action.setEffectiveTimeScale(locked ? 0 : choice.timeScale);
+    }
     rt.mixer.update(dt);
+    // Only the equipped tool, only while it's in use.
+    for (const [id, obj] of rt.tools) obj.visible = driver.tool === id;
 
     // Preparation results, shown on the model.
     const c = driver.cosmetic;

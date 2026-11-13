@@ -4,8 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cdpFor, completePreparation, face, launch, makeChecker, openGame, playEntryBadly, playEntrySkilled,
-  ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, startRun, wait, walkPath,
-} from './helpers.mjs';
+  ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, startRun, wait, walkPath, settleAt } from './helpers.mjs';
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
 const SHOTS = process.argv[3] ?? 'test-results/phase2';
@@ -63,7 +62,7 @@ async function runA(browser) {
   s = await snap(page);
   check('entry: walked physically to the back wall of Rahim\'s house', Math.hypot(s.player.x + 15.4, s.player.z - 6) < 1.0, `x=${s.player.x.toFixed(2)} z=${s.player.z.toFixed(2)}`);
   // A sprint with tolerance 0.8 can stop half a metre off the wall line; settle onto it at walking pace.
-  await walkPath(page, [[-15.4, 6]], { tol: 0.3, timeout: 8000 });
+  await settleAt(page, -15.4, 6);
   await face(page, -14.6, 6);
   await page.waitForFunction(() => window.__sidhel.snapshot().hud.focus === 'rahim-sidh', null, { timeout: 5000 }).catch(() => {});
   s = await snap(page);

@@ -6,6 +6,9 @@ import { canEnterMarket } from '../game/systems/market';
 import { daylight } from '../game/effects/daylight';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
 import { useRunStore } from './useRunStore';
+import { buyEquipment, buySupply, eat, equip, nap, settleRun, startNight, type OpResult, type Profile } from '../game/systems/progression';
+import { beginNightBody, currentEnergy, nightBody } from '../game/systems/nightBody';
+import type { EquipmentId, FoodId, SupplyId } from '../game/data/economy';
 
 export type Overlay = 'none' | 'settings' | 'help';
 
@@ -33,6 +36,17 @@ type AppState = {
   lastResult: CompletedRun | null;
   /** False when the last save failed (storage blocked / quota). */
   lastSaveOk: boolean;
+  /** Persistent progression (money, energy, equipment, village memory). */
+  profile: Profile;
+  /** What the last run changed in the bank (results / safehouse summary). */
+  lastSettlement: { runId: string; earned: number; bankBefore: number; bankAfter: number; energyBefore: number; energyAfter: number } | null;
+  /** results / menu → the safehouse (eat, rest, upgrade, then the next night). */
+  goSafehouse: () => void;
+  eatFood: (food: FoodId, txId: string) => OpResult;
+  takeNap: (txId: string) => OpResult;
+  buyItem: (id: EquipmentId, txId: string) => OpResult;
+  equipItem: (id: EquipmentId) => OpResult;
+  buySupplies: (id: SupplyId, txId: string) => OpResult;
   setNickname: (name: string) => void;
   /** night-resolution → dawn (only after an escape with loot). */
   startDawn: () => void;
@@ -102,11 +116,19 @@ export const useAppStore = create<AppState>()((set, get) => ({
   runs: initial.document.runs,
   lastResult: null,
   lastSaveOk: true,
+  profile: initial.document.profile,
+  lastSettlement: null,
 
   startRun: () => {
     const { phase, sessionId } = get();
     const next = assertTransition(phase, 'preparation');
-    useRunStore.getState().newRun(seedForNewRun());
+    const seed = seedForNewRun();
+    // Night start: tonight's loadout from the saved profile (consumes the food buff, day + 1).
+    const started = startNight(get().profile);
+    beginNightBody(started.loadout, seed);
+    set({ profile: started.profile });
+    persist({ profile: started.profile });
+    useRunStore.getState().newRun(seed);
     daylight.factor = 0;
     set({ phase: next, paused: false, overlay: 'none', sessionId: sessionId + 1, zone: 'village', lastResult: null });
   },
@@ -149,8 +171,31 @@ export const useAppStore = create<AppState>()((set, get) => ({
       line: summaryLine(run, b),
     };
     const doc = addCompletedRun(savedDoc, record);
-    const ok = persist({ runs: doc.runs });
-    set({ phase: assertTransition(phase, 'results'), paused: false, overlay: 'none', lastResult: record, runs: doc.runs, lastSaveOk: ok });
+    // Bank the run exactly once (idempotent by run id) together with the run history.
+    const before = get().profile;
+    const body = nightBody.current;
+    const settled = settleRun(before, {
+      runId: run.id,
+      money: run.market?.money ?? 0,
+      energyEnd: currentEnergy(body),
+      suppliesLeft: body.supplies,
+      detections: run.detections + (run.market?.detections ?? 0),
+      chases: run.chases,
+      caught: b.stats.caught,
+      robbed: run.houseIdsEntered.length > 0,
+    });
+    const profile = settled.profile;
+    const ok = persist({ runs: doc.runs, profile });
+    set({
+      phase: assertTransition(phase, 'results'),
+      paused: false,
+      overlay: 'none',
+      lastResult: record,
+      runs: doc.runs,
+      lastSaveOk: ok,
+      profile,
+      lastSettlement: settled.ok ? { runId: run.id, earned: profile.bank - before.bank, bankBefore: before.bank, bankAfter: profile.bank, energyBefore: body.loadout.energy, energyAfter: profile.energy } : get().lastSettlement,
+    });
   },
   goTo: (to) => {
     const { phase } = get();
@@ -187,6 +232,16 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set({ paused: !paused, overlay: 'none' });
   },
   setOverlay: (overlay) => set({ overlay }),
+  goSafehouse: () => {
+    const { phase } = get();
+    if (phase === 'safehouse') return;
+    set({ phase: assertTransition(phase, 'safehouse'), paused: false, overlay: 'none', zone: 'village' });
+  },
+  eatFood: (food, txId) => applyOp(eat(get().profile, food, txId)),
+  takeNap: (txId) => applyOp(nap(get().profile, txId)),
+  buyItem: (id, txId) => applyOp(buyEquipment(get().profile, id, txId)),
+  equipItem: (id) => applyOp(equip(get().profile, id)),
+  buySupplies: (id, txId) => applyOp(buySupply(get().profile, id, txId)),
   updateSettings: (patch) => {
     const settings = { ...get().settings, ...patch };
     set({ settings });
@@ -201,6 +256,15 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setSceneReady: (sceneReady) => set({ sceneReady }),
   setContextLost: (contextLost) => set({ contextLost }),
 }));
+
+/** Apply a progression operation atomically: state and save change together, or not at all. */
+function applyOp(r: OpResult): OpResult {
+  if (r.ok) {
+    useAppStore.setState({ profile: r.profile });
+    useAppStore.setState({ lastSaveOk: persist({ profile: r.profile }) });
+  }
+  return r;
+}
 
 /** Phases in which the player avatar and NPCs exist in the world. */
 export const WORLD_PHASES: readonly GamePhase[] = ['night', 'entry', 'interior', 'chase', 'caught', 'bazaar', 'bargain'];

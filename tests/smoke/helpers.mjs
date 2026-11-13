@@ -32,6 +32,14 @@ export async function openGame(page, base, query = '') {
   await page.goto(`${base}/?debug=1${query}`);
   await page.getByTestId('start-button').waitFor();
   await page.waitForFunction(() => !document.querySelector('[data-testid=start-button]')?.hasAttribute('disabled'), null, { timeout: 60000 });
+  // The button enables before the first frames have rendered (shader compilation and model
+  // parsing under SwiftShader can block the main thread for tens of seconds on a loaded CPU).
+  // Playwright's click needs stable animation frames, so wait until three frames have run.
+  await page.waitForFunction(
+    () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))),
+    null,
+    { timeout: 120000, polling: 1000 },
+  );
 }
 
 /** CDP session for timestamped input (simulates a human pressing at an exact moment). */
@@ -70,6 +78,10 @@ const prepTarget = () => {
  */
 export async function completePreparation(page, cdp, { touch = false } = {}) {
   await page.getByTestId('prep-overlay').waitFor();
+  // The ritual registers its timing hook in an effect after the first frame; on a slow headless
+  // frame that can take longer than the overlay's appearance. Without this wait the loop below
+  // saw no stage, skipped every beat and then timed out waiting for the finish button.
+  await page.waitForFunction(() => window.__sidhel?.snapshot().prep !== null, null, { timeout: 15000 });
   await wait(600);
   for (let attempt = 0; attempt < 20; attempt++) {
     const stage = (await snap(page)).prep?.stage;
@@ -125,21 +137,44 @@ async function aim(page, x, z) {
   );
 }
 
+const simTime = (page) => page.evaluate(() => window.__sidhel.snapshot().simTime);
+
+/**
+ * Precise mode (test-only controllable simulation time, see `setMaxFrameStep` in GameCanvas).
+ * Measured on this machine: headless SwiftShader renders ~2.3 FPS, and Rapier catches up with up
+ * to 0.5 s of fixed 1/60 steps per rendered frame, all sharing ONE input sample. A walking thief
+ * therefore moves ~1.3 m (sprint ~2.4 m) per observable frame, more than a 0.3 m arrival window,
+ * so fine positioning random-walked. In precise mode a frame advances at most 0.1 s of game time
+ * (walk ≤ 0.3 m), at the cost of game time running slower than wall-clock time. It changes no
+ * game rule and no assertion; on a 60 FPS machine it is a no-op.
+ */
+export async function precise(page, on = true) {
+  await page.evaluate((v) => window.__sidhel.setMaxFrameStep?.(v), on ? 0.1 : null);
+}
+
 /**
  * Walk through waypoints with real key presses (W, optional Shift / crouch already toggled).
  * Re-aims frequently; returns false if a waypoint can't be reached in time.
+ * `timeout` is a GAME-time budget in ms (simulation seconds × 1000), so a slow or loaded machine
+ * gets the same budget a real-time player has; a wall-clock safety cap (6×) still applies.
  */
 export async function walkPath(page, points, { run = false, tol = 0.8, timeout = 20000, stopWhen, brake = true } = {}) {
   for (const [x, z] of points) {
     const t0 = Date.now();
+    const g0 = await simTime(page);
     let d = await aim(page, x, z);
     if (run) await page.keyboard.down('ShiftLeft');
     await page.keyboard.down('KeyW');
     let sprinting = run;
+    let fine = false;
     while (d > tol) {
-      if (Date.now() - t0 > timeout) {
+      const overGame = ((await simTime(page)) - g0) * 1000 > timeout;
+      if (overGame || Date.now() - t0 > timeout * 6 + 30000) {
+        const sp = await snap(page);
+        console.log(`info  walk timeout → (${x}, ${z}): at (${sp.player?.x.toFixed(2)}, ${sp.player?.z.toFixed(2)}) d=${d.toFixed(2)} tol=${tol} game=${((sp.simTime - g0)).toFixed(1)}s wall=${((Date.now() - t0) / 1000).toFixed(1)}s phase=${sp.app.phase} ${overGame ? 'game budget' : 'wall cap'}`);
         await page.keyboard.up('KeyW');
         if (sprinting) await page.keyboard.up('ShiftLeft');
+        if (fine) await precise(page, false);
         return false;
       }
       if (stopWhen && (await stopWhen())) break;
@@ -148,24 +183,40 @@ export async function walkPath(page, points, { run = false, tol = 0.8, timeout =
         await page.keyboard.up('ShiftLeft');
         sprinting = false;
       }
+      // Arrival: switch to precise mode so one frame cannot jump across the arrival window.
+      if (!fine && d < 3) {
+        await precise(page, true);
+        fine = true;
+      }
       await wait(d < 1.5 ? 60 : 120);
       d = await aim(page, x, z);
     }
     if (sprinting) await page.keyboard.up('ShiftLeft');
     await page.keyboard.up('KeyW');
+    if (fine) await precise(page, false);
     if (stopWhen && (await stopWhen())) return true;
   }
   await wait(250);
   return true;
 }
 
-/** Face a world point without moving (tiny tap of W toward it). */
+/** Face a world point without moving far (tiny tap of W toward it), in precise mode. */
 export async function face(page, x, z) {
+  await precise(page, true);
   await aim(page, x, z);
   await page.keyboard.down('KeyW');
   await wait(90);
   await page.keyboard.up('KeyW');
-  await wait(300);
+  await wait(450);
+  await precise(page, false);
+}
+
+/** Final approach to a spot: precise mode, tight tolerance (see `precise`). */
+export async function settleAt(page, x, z, { tol = 0.3, timeout = 8000 } = {}) {
+  await precise(page, true);
+  const ok = await walkPath(page, [[x, z]], { tol, timeout });
+  await precise(page, false);
+  return ok;
 }
 
 export const ROUTE_TO_BACK_WALL = [
@@ -186,7 +237,7 @@ export async function approachSidh(page, { run = true, stopWhen } = {}) {
     if (stopWhen && (await stopWhen())) return null;
     if (!(await walkPath(page, [p], { run, timeout: 25000, stopWhen }))) await walkPath(page, [p], { timeout: 40000, stopWhen });
   }
-  await walkPath(page, [[-15.4, 6]], { tol: 0.3, timeout: 8000 });
+  await settleAt(page, -15.4, 6);
   await face(page, -14.6, 6);
   await page.waitForFunction(() => window.__sidhel.snapshot().hud.focus === 'rahim-sidh', null, { timeout: 5000 }).catch(() => {});
   return (await snap(page)).hud.focus;
@@ -208,10 +259,12 @@ export async function playEntrySkilled(page, cdp) {
     const s = (await snap(page)).entry;
     if (!s || s.status !== 'running') break;
     await spaceAt(page, cdp, () => {
+      // Hook times are game ms; with a test minigame time scale k, one game ms = 1/k wall ms.
+      const k = window.__sidhel.minigameTimeScale?.() ?? 1;
       const e = window.__sidhel.snapshot().entry;
       let ms = e.msUntilNextBeat;
       if (ms < 120) ms += 1050;
-      return { ms, epoch: performance.timeOrigin + performance.now() + ms };
+      return { ms: ms / k, epoch: performance.timeOrigin + performance.now() + ms / k };
     });
     await wait(450);
   }
@@ -291,7 +344,9 @@ export async function pickItem(page, it) {
     // Approach straight along the line to the item so the final heading points at it (a short
     // `face()` tap may not produce a physics step at headless frame rates).
     const far = Math.min(1.5, d - 0.2);
+    await precise(page, true);
     await walkPath(page, [[it.x + (dx / d) * far, it.z + (dz / d) * far], [it.x + (dx / d) * dist, it.z + (dz / d) * dist]], { tol: 0.3, timeout: 9000 });
+    await precise(page, false);
     await face(page, it.x, it.z);
     const ok = await page
       .waitForFunction((id) => window.__sidhel.snapshot().hud.focus === id, `item:${it.id}`, { timeout: 2500 })

@@ -110,6 +110,8 @@ def stage_rig():
     col = bpy.data.collections["Thief_Parts"]
     parts = {o.name: o for o in col.objects}
     mesh, headband, arm = R.build(parts)
+    import th_props as Pr
+    Pr.build_tools(arm)
     print("[thief] rig built:", arm.name, len(arm.data.bones), "bones")
 
 

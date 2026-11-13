@@ -21,6 +21,23 @@ export type EntryConfig = {
   noiseDecayPerSec: number;
 };
 
+/** Scale an entry config by equipment modifiers and the food buff (Phase 4B, data-driven). */
+export function entryConfigFor(base: EntryConfig, mods: { entryProgress?: number; entryNoise?: number }, sharpEyes = false): EntryConfig {
+  const p = mods.entryProgress ?? 1;
+  const n = mods.entryNoise ?? 1;
+  const w = sharpEyes ? 1.15 : 1;
+  return {
+    ...base,
+    progressPerfect: base.progressPerfect * p,
+    progressGood: base.progressGood * p,
+    noiseMiss: base.noiseMiss * n,
+    noiseLapse: base.noiseLapse * n,
+    noiseHit: base.noiseHit * n,
+    perfectWindow: base.perfectWindow * w,
+    goodWindow: base.goodWindow * w,
+  };
+}
+
 export type Judgement = 'perfect' | 'good' | 'miss' | 'lapse';
 export type EntryStatus = 'running' | 'success' | 'failed';
 
@@ -43,13 +60,31 @@ export class EntryChallenge {
   lastEvent: EntryEvent | null = null;
   /** Index of the first beat not yet consumed or lapsed. */
   private cursor = 0;
+  /** Seconds the beat schedule has been pushed back by resting (Phase 4B). */
+  private offset = 0;
+  /** Catching breath: no beats arrive (none lapse), noise settles. */
+  resting = false;
 
   constructor(config: EntryConfig) {
     this.config = config;
   }
 
   beatTime(index: number): number {
-    return this.config.firstBeatDelay + index * this.config.beatInterval;
+    return this.config.firstBeatDelay + this.offset + index * this.config.beatInterval;
+  }
+
+  /**
+   * Rest / resume (Phase 4B). While resting, time still passes (noise decays) but the beat
+   * schedule waits; on resume the next beat comes one full interval later, never instantly.
+   */
+  setResting(resting: boolean): void {
+    if (this.status !== 'running' || this.resting === resting) return;
+    this.resting = resting;
+    if (!resting) {
+      const next = this.beatTime(this.cursor);
+      const earliest = this.time + this.config.beatInterval;
+      if (next < earliest) this.offset += earliest - next;
+    }
   }
 
   /** Seconds from `at` until the next unconsumed beat (for visuals and tests). */
@@ -69,6 +104,12 @@ export class EntryChallenge {
   advance(dt: number): EntryEvent[] {
     if (this.status !== 'running' || dt <= 0) return [];
     this.time += dt;
+    if (this.resting) {
+      // The schedule slides with time: no beat arrives or lapses while catching breath.
+      this.offset += dt;
+      this.noise = Math.max(0, this.noise - this.config.noiseDecayPerSec * dt);
+      return [];
+    }
     const events: EntryEvent[] = [];
     while (this.beatTime(this.cursor) + this.config.goodWindow + LAPSE_GRACE < this.time) {
       const ev: EntryEvent = { kind: 'lapse', at: this.beatTime(this.cursor) + this.config.goodWindow, beatIndex: this.cursor };
@@ -83,9 +124,12 @@ export class EntryChallenge {
     return events;
   }
 
-  /** Judge a tap at game time `at` (its real timestamp; may be slightly before the current time). */
-  tap(at: number): EntryEvent | null {
-    if (this.status !== 'running') return null;
+  /**
+   * Judge a tap at game time `at` (its real timestamp; may be slightly before the current time).
+   * `power` 0..1 scales the progress of a good strike (a tired thief digs less per swing).
+   */
+  tap(at: number, power = 1): EntryEvent | null {
+    if (this.status !== 'running' || this.resting) return null;
     if (at > this.time) this.advance(at - this.time);
     if (this.status !== 'running') return null;
     // Skip beats whose window had fully closed before this tap happened.
@@ -100,10 +144,10 @@ export class EntryChallenge {
     let ev: EntryEvent;
     if (error <= this.config.perfectWindow) {
       ev = { kind: 'perfect', at, beatIndex: this.cursor };
-      this.progress = Math.min(100, this.progress + this.config.progressPerfect);
+      this.progress = Math.min(100, this.progress + this.config.progressPerfect * power);
     } else if (error <= this.config.goodWindow) {
       ev = { kind: 'good', at, beatIndex: this.cursor };
-      this.progress = Math.min(100, this.progress + this.config.progressGood);
+      this.progress = Math.min(100, this.progress + this.config.progressGood * power);
     } else {
       ev = { kind: 'miss', at, beatIndex: null };
       this.misses++;

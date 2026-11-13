@@ -49,6 +49,13 @@ SHOTS = {
     "chase": (40, 5, 3.0, 0.86, "ChaseReaction", 0.6, 1, True),
     "caught": (25, 5, 3.0, 0.9, "Caught", 0.3, 1, True),
     "celebrate": (25, 5, 3.0, 0.9, "Celebrate", 0.9, 1, True),
+    # Phase 4B
+    "dig_up": (60, 6, 3.0, 0.7, "Dig", 0.42, 1, True),
+    "dig_hit": (60, 6, 3.0, 0.6, "Dig", 0.55, 1, True),
+    "dig_pry": (60, 6, 3.0, 0.6, "Dig", 0.78, 1, True),
+    "dig_side": (90, 4, 3.0, 0.6, "Dig", 0.55, 1, True),
+    "tired": (35, 6, 3.0, 0.75, "Tired", 0.25, 1, True),
+    "eat": (35, 6, 2.6, 0.6, "Eat", 0.5, 1, True),
 }
 
 
@@ -148,6 +155,11 @@ def main():
     names = arg("--shots", "front,back,side,threequarter,face").split(",")
     prefix = arg("--prefix", "")
     cam = setup(res)
+    # Only the chosen hand tool is visible (all four are bone-parented to hand_R).
+    tool = arg("--tool", "bamboo-khunti")
+    for o in bpy.data.objects:
+        if o.name.startswith("Tool_"):
+            o.hide_render = o.name != f"Tool_{tool}"
     for n in names:
         yaw, pitch, dist, fz, act, frac, tuck, hb = SHOTS[n]
         pose(act, frac, tuck, hb)

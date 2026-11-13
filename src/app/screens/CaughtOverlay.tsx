@@ -1,74 +1,84 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../state/useAppStore';
 import { useRunStore } from '../../state/useRunStore';
-import { CATCH_LINES, MOJNU_NAME, RAHIM_NAME, THIEF_NAME } from '../../game/data/dialogue';
-import { MARKET_CATCH_LINES, WATCHMAN_NAME } from '../../game/data/marketDialogue';
+import { audio } from '../../game/audio/AudioManager';
+import { voice } from '../../game/audio/voice';
+import { buildCatchSequence, CATCH_DURATION, CATCH_SKIP_AFTER, type CatchCue } from '../../game/audio/catchSequence';
 
-type Line = { at: number; speaker: string; text: string };
+type LineCue = Extract<CatchCue, { kind: 'line' }>;
 
-const SKIP_AFTER = 1.2;
-const DURATION = 6.4;
-
-/** Timed overlapping subtitles for the 3D catch vignette; skippable after a moment. */
+/**
+ * The comic catch: one cue list drives the overlapping subtitles, crowd voices and cartoon SFX in
+ * sync with the 3D vignette (CaughtScene). Pause-aware; skippable after a moment, and skipping
+ * silences every scheduled sound of the sequence at once.
+ */
 export function CaughtOverlay() {
   const goTo = useAppStore((s) => s.goTo);
   const zone = useAppStore((s) => s.zone);
   const showResults = useAppStore((s) => s.showResults);
-  const finish = useMemo(() => (zone === 'bazaar' ? showResults : () => goTo('night-resolution')), [zone, showResults, goTo]);
   const rough = useAppStore((s) => s.settings.roughDialogue);
   const run = useRunStore((s) => s.run);
   const caughtBy = useRunStore((s) => s.caughtBy);
   const [shown, setShown] = useState(0);
   const [skippable, setSkippable] = useState(false);
+  const done = useRef(false);
 
-  const lines = useMemo<Line[]>(() => {
-    const items = run?.confiscated.map((i) => i.lootId) ?? [];
-    const p = CATCH_LINES.punchlines;
-    const special = (['actual-jewelry', 'dentures', 'chicken', 'old-radio', 'alarm-clock'] as const).find((id) => items.includes(id));
-    const punch = items.length === 0 ? p.empty : special ? p[special] : p.other[(run?.seed ?? 0) % p.other.length]!;
-    const dawn = run?.outcome === 'dawn-caught';
-    if (zone === 'bazaar') {
-      return [
-        { at: 0.1, speaker: WATCHMAN_NAME, text: MARKET_CATCH_LINES.watchman },
-        { at: 1.3, speaker: 'হাটের লোকজন', text: MARKET_CATCH_LINES.crowd },
-        { at: 2.6, speaker: THIEF_NAME, text: MARKET_CATCH_LINES.thief },
-        { at: 4.0, speaker: WATCHMAN_NAME, text: 'মাল সব বাজেয়াপ্ত, অর্ধেক টাকা জরিমানা! যা, ভাগ!' },
-      ];
-    }
-    return [
-      dawn
-        ? { at: 0.1, speaker: 'গ্রামবাসী', text: 'ভোর হয়ে গেছে — চোর এখনো গ্রামে!' }
-        : caughtBy === 'rahim'
-          ? { at: 0.1, speaker: RAHIM_NAME, text: 'চোর! চোর! আমার ঘরে চোর! কে আছ, আসো!' }
-          : { at: 0.1, speaker: MOJNU_NAME, text: CATCH_LINES.mojnu },
-      { at: 1.2, speaker: 'প্রতিবেশী', text: rough ? CATCH_LINES.roughA : CATCH_LINES.familyA },
-      { at: 2.1, speaker: 'আরেক প্রতিবেশী', text: rough ? CATCH_LINES.roughB : CATCH_LINES.familyB },
-      { at: 3.1, speaker: THIEF_NAME, text: CATCH_LINES.thief },
-      { at: 4.3, speaker: caughtBy === 'rahim' ? RAHIM_NAME : MOJNU_NAME, text: punch },
-    ];
-  }, [run, rough, caughtBy, zone]);
+  const finish = useMemo(
+    () => () => {
+      if (done.current) return;
+      done.current = true;
+      audio.stopGroup('catch');
+      voice.stopAll();
+      if (useAppStore.getState().phase !== 'caught') return;
+      if (zone === 'bazaar') showResults();
+      else goTo('night-resolution');
+    },
+    [zone, showResults, goTo],
+  );
+
+  // Built once per catch (the run changes as the catch resolves; the sequence must not restart).
+  const [cues] = useState(() =>
+    buildCatchSequence({
+      zone,
+      caughtBy,
+      dawn: run?.outcome === 'dawn-caught',
+      rough,
+      confiscated: run?.confiscated.map((i) => i.lootId) ?? [],
+      seed: run?.seed ?? 0,
+    }),
+  );
+  const lines = useMemo(() => cues.filter((c): c is LineCue => c.kind === 'line'), [cues]);
 
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
     let acc = 0;
+    let fired = 0;
     const loop = () => {
       const now = performance.now();
       if (!useAppStore.getState().paused) acc += Math.min(0.5, (now - last) / 1000);
       last = now;
+      while (fired < cues.length && cues[fired]!.at <= acc) {
+        const c = cues[fired++]!;
+        if (c.kind === 'sfx') audio.play(c.sound, { gain: c.gain, group: 'catch' });
+        else voice.crowd(c.lineId);
+      }
       // Only re-render when a new subtitle appears (not every frame).
       const count = lines.filter((l) => l.at <= acc).length;
       setShown((c) => (c === count ? c : count));
-      if (acc >= SKIP_AFTER) setSkippable(true);
-      if (acc >= DURATION) {
-        if (useAppStore.getState().phase === 'caught') finish();
+      if (acc >= CATCH_SKIP_AFTER) setSkippable(true);
+      if (acc >= CATCH_DURATION) {
+        finish();
         return;
       }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [finish, lines]);
+    return () => {
+      cancelAnimationFrame(raf);
+      audio.stopGroup('catch');
+    };
+  }, [cues, lines, finish]);
 
   const visible = lines.slice(0, shown).slice(-3);
   return (
@@ -84,7 +94,7 @@ export function CaughtOverlay() {
           </div>
         ))}
         {skippable && (
-          <button type="button" className="btn btn-primary pointer-events-auto mt-2" onClick={finish} data-testid="caught-skip">
+          <button type="button" className="btn btn-primary pointer-events-auto mt-2 min-h-12" onClick={finish} data-testid="caught-skip">
             এগিয়ে যাও ›
           </button>
         )}

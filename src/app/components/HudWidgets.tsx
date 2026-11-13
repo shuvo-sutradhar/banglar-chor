@@ -2,7 +2,7 @@ import { useAppStore } from '../../state/useAppStore';
 import { useHudStore } from '../../state/useHudStore';
 import { useRunStore } from '../../state/useRunStore';
 import { LOOT, soundRiskLabelBn, type LootId } from '../../game/data/loot';
-import { CARRY_CAPACITY_KG, canCarry, totalWeight } from '../../game/systems/inventory';
+import { carryCapacityKg, canCarry, totalWeight } from '../../game/systems/inventory';
 import { currentObjective } from '../../game/systems/objectives';
 import { formatKg, formatNightClock, toBnDigits } from '../../lib/format';
 import type { NpcState } from '../../game/ai/npcBrain';
@@ -94,14 +94,14 @@ export function CarryBar({ onOpen }: { onOpen: () => void }) {
   const inventory = useRunStore((s) => s.run?.inventory);
   if (!inventory) return null;
   const w = totalWeight(inventory);
-  const ratio = Math.min(1, w / CARRY_CAPACITY_KG);
+  const ratio = Math.min(1, w / carryCapacityKg());
   const cue = ratio >= 1 ? 'ভরা!' : ratio >= 0.85 ? 'খুব ভারী' : ratio >= 0.6 ? 'ভারী' : '';
   return (
     <button type="button" className="panel pointer-events-auto block w-52 px-3 py-1.5 text-left text-sm" onClick={onOpen} onPointerDown={(e) => e.stopPropagation()} data-testid="carry-bar">
       <div className="flex justify-between">
         <span>🎒 ঝোলা ({toBnDigits(inventory.length)})</span>
         <span className="tabular-nums text-moon">
-          {formatKg(w)} / {formatKg(CARRY_CAPACITY_KG)}
+          {formatKg(w)} / {formatKg(carryCapacityKg())}
         </span>
       </div>
       <div className="mt-1 h-2 overflow-hidden rounded-full bg-black/40">

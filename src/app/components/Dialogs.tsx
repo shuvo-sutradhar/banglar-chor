@@ -43,6 +43,18 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   );
 }
 
+function Slider({ label, value, onChange, min = 0, max = 1, step = 0.05, testId }: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; testId?: string }) {
+  return (
+    <label className="mb-1 block">
+      <span className="flex justify-between text-sm">
+        <span>{label}</span>
+        <span className="tabular-nums text-moon">{Math.round(((value - min) / (max - min || 1)) * 100)}%</span>
+      </span>
+      <input type="range" min={min} max={max} step={step} value={value} className="h-10 w-full accent-lantern" onChange={(e) => onChange(Number(e.target.value))} data-testid={testId} />
+    </label>
+  );
+}
+
 export function SettingsDialog() {
   const settings = useAppStore((s) => s.settings);
   const update = useAppStore((s) => s.updateSettings);
@@ -92,15 +104,21 @@ export function SettingsDialog() {
       <Toggle label={t('settingsReducedMotion')} checked={settings.reducedMotion} onChange={(v) => update({ reducedMotion: v })} />
       <Toggle label={t('settingsHints')} checked={settings.showControlHints} onChange={(v) => update({ showControlHints: v })} />
       <Toggle label={t('settingsSubtitles')} checked={settings.subtitles} onChange={(v) => update({ subtitles: v })} />
-      <label className="my-2 block">
-        <span className="mb-1 flex justify-between">
-          <span>শব্দের ভলিউম (অস্থায়ী সিন্থ শব্দ)</span>
-          <span className="tabular-nums text-moon">{Math.round(settings.volume * 100)}%</span>
-        </span>
-        <input type="range" min={0} max={1} step={0.05} value={settings.volume} className="h-10 w-full accent-lantern" onChange={(e) => update({ volume: Number(e.target.value) })} />
-      </label>
-      <Toggle label="সব শব্দ বন্ধ" checked={settings.muted} onChange={(v) => update({ muted: v })} />
-      <Toggle label="ধরা পড়ার দৃশ্যে রুক্ষ গ্রাম্য সংলাপ" checked={settings.roughDialogue} onChange={(v) => update({ roughDialogue: v })} />
+      <fieldset className="my-2" data-testid="audio-mix">
+        <legend className="mb-1 font-semibold">শব্দ</legend>
+        <Slider label="মূল ভলিউম" value={settings.volume} onChange={(v) => update({ volume: v })} testId="vol-master" />
+        <Slider label="পরিবেশ (ঝিঁঝি, ব্যাঙ, বাতাস…)" value={settings.ambienceVolume} onChange={(v) => update({ ambienceVolume: v })} testId="vol-ambience" />
+        <Slider label="ইফেক্ট (পায়ের শব্দ, কোদাল…)" value={settings.sfxVolume} onChange={(v) => update({ sfxVolume: v })} testId="vol-sfx" />
+        <Slider label="সংলাপ" value={settings.voiceVolume} onChange={(v) => update({ voiceVolume: v })} testId="vol-voice" />
+        <Toggle label="সব শব্দ বন্ধ" checked={settings.muted} onChange={(v) => update({ muted: v })} />
+        <p className="text-xs leading-snug text-moon">সংলাপ এখনো রেকর্ড করা হয়নি — শুধু সাবটাইটেল দেখায়। পরিবেশের শব্দ খেলার ভেতরেই তৈরি (মৌলিক)।</p>
+      </fieldset>
+      <Toggle label="রুক্ষ গ্রাম্য সংলাপ (বন্ধ = পরিবার-বান্ধব)" checked={settings.roughDialogue} onChange={(v) => update({ roughDialogue: v })} />
+      <fieldset className="my-2" data-testid="touch-settings">
+        <legend className="mb-1 font-semibold">টাচ নিয়ন্ত্রণ</legend>
+        <Slider label="জয়স্টিকের মৃত অঞ্চল" value={settings.joystickDeadZone} min={0.04} max={0.35} step={0.01} onChange={(v) => update({ joystickDeadZone: v })} testId="deadzone" />
+        <Toggle label="বাঁহাতি বিন্যাস (জয়স্টিক ডানে)" checked={settings.leftHanded} onChange={(v) => update({ leftHanded: v })} />
+      </fieldset>
       <Toggle label="নতুন চোর মডেল (বন্ধ = পুরোনো সাধারণ মডেল)" checked={settings.characterModel === 'model'} onChange={(v) => update({ characterModel: v ? 'model' : 'procedural' })} />
 
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-moon/20 pt-4">

@@ -75,6 +75,8 @@ export type EntryRuntime = {
   progress: number;
   /** Increments on every judged tap; the rig uses it to animate a scoop. */
   pulse: number;
+  /** Judgement of the latest pulse (dirt flies on hits). */
+  lastKind: 'perfect' | 'good' | 'miss' | 'lapse' | null;
 };
 
 export type GameRuntime = {
@@ -126,7 +128,7 @@ export function createGameRuntime(): GameRuntime {
       occluded: false,
     },
     npcs: new Map(),
-    entry: { active: false, progress: 0, pulse: 0 },
+    entry: { active: false, progress: 0, pulse: 0, lastKind: null },
     simTime: 0,
   };
 }

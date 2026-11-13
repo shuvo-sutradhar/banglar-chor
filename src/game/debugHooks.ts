@@ -4,7 +4,7 @@
  */
 export type DebugHooks = {
   prep?: () => { stage: string; msUntilSweetSpot: number; idealHoldMs: number };
-  entry?: () => { msUntilNextBeat: number; time: number; progress: number; noise: number; status: string; hintVisible: boolean };
+  entry?: () => { msUntilNextBeat: number; time: number; progress: number; noise: number; status: string; hintVisible: boolean; resting: boolean; stamina: number; tool: string; clipPhase: number | null };
   persuade?: () => { msUntilSweet: number; speed: number };
   trade?: () => { phase: string; offer: number; reservation: number; countersLeft: number; patience: number; suspicion: number; examining: boolean; item: string | null };
   dawn?: () => { progress: number };

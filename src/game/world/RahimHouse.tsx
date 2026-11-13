@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { CircleGeometry, PlaneGeometry, type Mesh } from 'three';
+import { CircleGeometry, InstancedMesh, Matrix4, PlaneGeometry, Quaternion, Vector3, type Mesh } from 'three';
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider } from '@react-three/rapier';
 import { CAMERA_TRANSPARENT } from '../physics/queries';
@@ -34,6 +34,65 @@ function DigMark() {
     m.scale.set(0.3 + 1.0 * k, 0.3 + 1.15 * k, 1);
   });
   return <mesh ref={ref} geometry={DISC} material={mat('holeDark')} position={[0, 0.95, -2.255]} rotation={[0, Math.PI, 0]} visible={false} />;
+}
+
+const CLODS = 10;
+const _m = new Matrix4();
+const _q = new Quaternion();
+const _p = new Vector3();
+const _s = new Vector3();
+
+/**
+ * Dirt clods flicked out of the wall base on every good strike (Phase 4B tool feedback):
+ * one instanced mesh, simple ballistic motion, local to the house (outside the back wall).
+ */
+function DigDirt() {
+  const runtime = useGameRuntime();
+  const mesh = useMemo(() => {
+    const m = new InstancedMesh(UNIT_BOX, mat('mudDark'), CLODS);
+    m.count = CLODS;
+    m.frustumCulled = false;
+    return m;
+  }, []);
+  const sim = useMemo(() => ({ seen: 0, clods: Array.from({ length: CLODS }, () => ({ p: new Vector3(), v: new Vector3(), life: 0, s: 0.05 })) }), []);
+  useFrame((_, rawDt) => {
+    const dt = Math.min(rawDt, 0.1);
+    const e = runtime.entry;
+    if (e.pulse !== sim.seen) {
+      sim.seen = e.pulse;
+      if (e.lastKind === 'perfect' || e.lastKind === 'good') {
+        const n = e.lastKind === 'perfect' ? 6 : 4;
+        let spawned = 0;
+        for (const c of sim.clods) {
+          if (spawned >= n) break;
+          if (c.life > 0) continue;
+          c.p.set((Math.random() - 0.5) * 0.4, 0.25, -2.4);
+          c.v.set((Math.random() - 0.5) * 1.6, 1.4 + Math.random() * 1.2, -0.8 - Math.random() * 0.9);
+          c.life = 0.9;
+          c.s = 0.04 + Math.random() * 0.05;
+          spawned++;
+        }
+      }
+    }
+    let any = false;
+    sim.clods.forEach((c, i) => {
+      if (c.life > 0) {
+        c.life -= dt;
+        c.v.y -= 9 * dt;
+        c.p.addScaledVector(c.v, dt);
+        if (c.p.y < 0.03) {
+          c.p.y = 0.03;
+          c.v.set(0, 0, 0);
+        }
+        any = true;
+      }
+      const s = c.life > 0 ? c.s : 0;
+      mesh.setMatrixAt(i, _m.compose(_p.copy(c.p), _q.identity(), _s.set(s, s * 0.8, s)));
+    });
+    mesh.visible = any;
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+  return <primitive object={mesh} />;
 }
 
 function HoleRubble() {
@@ -139,6 +198,7 @@ export function RahimHouse() {
         <>
           <Block size={[H.halfWidth * 2, holeH, 0.25]} position={[0, H.bottom + holeH / 2, -2.125]} material={mat('mud')} collider shell />
           <DigMark />
+      <DigDirt />
         </>
       )}
       {/* Darker lepa band along the outside base */}

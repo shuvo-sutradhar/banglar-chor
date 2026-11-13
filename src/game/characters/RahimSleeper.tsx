@@ -17,6 +17,7 @@ import { say, triggerCaught } from '../systems/nightActions';
 import { HumanRig } from './HumanRig';
 import { RAHIM_LOOK } from './appearances';
 import { setAction, type RigDriver } from './rigTypes';
+import { nightBody } from '../systems/nightBody';
 
 const NPC_ID = 'rahim';
 const pick = <T,>(lines: readonly T[], k: number): T => lines[Math.abs(Math.floor(k)) % lines.length] as T;
@@ -84,18 +85,19 @@ export function RahimSleeper() {
 
     const p = runtime.player.position;
     const inside = runtime.player.body !== null && insideRahimHouse(p.x, p.z) && !runtime.player.script;
-    const ev = stepSleeper(sim.s, loudest, inside, dt, RAHIM_SLEEPER);
+    // After recent incidents Rahim sleeps lighter (capped, Stage 5 village memory).
+    const ev = stepSleeper(sim.s, loudest * nightBody.current.plan.rahimWakeMult, inside, dt, RAHIM_SLEEPER);
     const near = Math.hypot(p.x - hx, p.z - hz) < 9;
     const k = runtime.simTime * 3;
     switch (ev) {
       case 'stir':
-        if (near) say(pick(RAHIM_LINES.stir, k), RAHIM_NAME);
+        if (near) say(pick(RAHIM_LINES.stir, k), RAHIM_NAME, { x: hx, z: hz });
         break;
       case 'settle':
-        if (near) say(pick(RAHIM_LINES.settle, k), RAHIM_NAME);
+        if (near) say(pick(RAHIM_LINES.settle, k), RAHIM_NAME, { x: hx, z: hz });
         break;
       case 'wake':
-        say(pick(RAHIM_LINES.wake, k), RAHIM_NAME);
+        say(pick(RAHIM_LINES.wake, k), RAHIM_NAME, { x: hx, z: hz });
         audio.play('shout', { at: { x: hx, z: hz } });
         audio.play('alert', { at: { x: hx, z: hz } });
         // A real alarm event: the patrol hears it and hurries to the house.
@@ -104,10 +106,10 @@ export function RahimSleeper() {
         break;
       case 'sleep':
         useRunStore.getState().setRahimAwake(false);
-        if (near) say(pick(RAHIM_LINES.settle, k), RAHIM_NAME);
+        if (near) say(pick(RAHIM_LINES.settle, k), RAHIM_NAME, { x: hx, z: hz });
         break;
       case 'grab':
-        say(RAHIM_LINES.grab[0], RAHIM_NAME);
+        say(RAHIM_LINES.grab[0], RAHIM_NAME, { x: hx, z: hz });
         triggerCaught(runtime, 'caught', 'rahim');
         return;
     }
@@ -128,7 +130,7 @@ export function RahimSleeper() {
         sim.snoreTimer = 9 + (runtime.simTime % 5);
         if (near) {
           audio.play('snore', { at: { x: hx, z: hz } });
-          if (Math.hypot(p.x - hx, p.z - hz) < 5) say(pick(RAHIM_LINES.snore, k), RAHIM_NAME);
+          if (Math.hypot(p.x - hx, p.z - hz) < 5) say(pick(RAHIM_LINES.snore, k), RAHIM_NAME, { x: hx, z: hz });
         }
       }
     }

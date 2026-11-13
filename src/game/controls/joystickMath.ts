@@ -21,3 +21,20 @@ export function adaptiveJoystickRadius(viewportWidth: number, viewportHeight: nu
   const short = Math.min(viewportWidth, viewportHeight);
   return Math.round(Math.min(78, Math.max(46, short * 0.15)));
 }
+
+/** Ignore a second tap on the same context button within this window (bounced / double touch). */
+export const TAP_GUARD_MS = 220;
+
+/**
+ * Floating joystick: when the thumb drags beyond 1.35 × radius, the base follows so the stick
+ * never needs to travel back across a large dead distance to reverse direction.
+ */
+export function followOrigin(ox: number, oy: number, x: number, y: number, radius: number, slack = 1.35): { x: number; y: number } {
+  const dx = x - ox;
+  const dy = y - oy;
+  const d = Math.hypot(dx, dy);
+  const max = radius * slack;
+  if (d <= max) return { x: ox, y: oy };
+  const k = (d - max) / d;
+  return { x: ox + dx * k, y: oy + dy * k };
+}

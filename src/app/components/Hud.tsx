@@ -6,6 +6,8 @@ import type { MovementMode } from '../../game/physics/motorMath';
 import type { InteractionKind } from '../../game/systems/InteractionSystem';
 import { useRunStore } from '../../state/useRunStore';
 import { CarryBar, ChaseVignette, DangerMeter, ItemCard, NightClock, ObjectiveLine, RahimCountdown } from './HudWidgets';
+import { StaminaBar } from './StaminaBar';
+import { countRender } from '../../game/perfCounters';
 
 const MODE_LABEL: Record<MovementMode, StringKey> = {
   idle: 'modeIdle',
@@ -42,7 +44,7 @@ function CaptionToast() {
   const subtitles = useAppStore((s) => s.settings.subtitles);
   useEffect(() => {
     if (!caption) return;
-    const ms = Math.min(6000, 2200 + caption.text.length * 45);
+    const ms = caption.ms ?? Math.min(6000, 2200 + caption.text.length * 45);
     const id = window.setTimeout(() => clearCaption(caption.id), ms);
     return () => window.clearTimeout(id);
   }, [caption, clearCaption]);
@@ -109,6 +111,7 @@ export function PortraitHint() {
 }
 
 export function Hud({ onLeaveHouse }: { onLeaveHouse: () => void }) {
+  countRender('Hud');
   const mode = useHudStore((s) => s.movementMode);
   const zone = useHudStore((s) => s.zoneLabel);
   const preset = useHudStore((s) => s.cameraPreset);
@@ -154,6 +157,7 @@ export function Hud({ onLeaveHouse }: { onLeaveHouse: () => void }) {
             </div>
             <DangerMeter />
             {!minimal && <CarryBar onOpen={() => setInventoryOpen(true)} />}
+            {!minimal && <StaminaBar />}
             {phase === 'interior' && useAppStore.getState().zone === 'village' && (
               <button
                 type="button"

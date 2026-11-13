@@ -3,7 +3,7 @@
 // Usage: node tests/smoke/visual-tour.mjs <baseUrl> <outDir> [--mobile]
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { cdpFor, face, launch, openGame, playEntrySkilled, ROUTE_TO_EXIT, snap, startRun, wait, walkPath, BAZAAR_PATHS, MERCHANT_SPOT } from './helpers.mjs';
+import { cdpFor, face, launch, openGame, playEntrySkilled, ROUTE_TO_EXIT, snap, startRun, wait, walkPath, BAZAAR_PATHS, MERCHANT_SPOT, settleAt } from './helpers.mjs';
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
 const OUT = process.argv[3] ?? 'test-results/tour';
@@ -50,7 +50,7 @@ try {
   await view('05-rahim-back-wall', -Math.PI / 2 + 0.6);
   // Same robust final approach as the Phase 2 suite: at headless frame rates the walk can stop
   // short of the sidh trigger, so step in tightly and wait for the focus before pressing E.
-  await walkPath(page, [[-15.4, 6]], { tol: 0.3, timeout: 8000 });
+  await settleAt(page, -15.4, 6);
   await face(page, -14.6, 6);
   await page.waitForFunction(() => window.__sidhel.snapshot().hud.focus === 'rahim-sidh', null, { timeout: 5000 }).catch(() => {});
   await page.keyboard.press('KeyE');
@@ -64,7 +64,7 @@ try {
   await view('07-interior', undefined, 1200);
   let s = await snap(page);
   const plate = s.run.worldItems.find((w) => w.lootId === 'metal-plate');
-  await walkPath(page, [[plate.x + 0.6, plate.z - 0.4]], { tol: 0.35, timeout: 9000 });
+  await settleAt(page, plate.x + 0.6, plate.z - 0.4, { tol: 0.35, timeout: 9000 });
   await face(page, plate.x, plate.z);
   await wait(1500);
   await page.screenshot({ path: join(OUT, '08-interior-item-focus.png') });

@@ -56,7 +56,7 @@ export class BargainSession {
   /** Final price when sold. */
   price = 0;
 
-  constructor(merchant: MerchantProfile, state: MerchantState, item: SessionItem, seed: number, opts: { ownerAlert?: boolean } = {}) {
+  constructor(merchant: MerchantProfile, state: MerchantState, item: SessionItem, seed: number, opts: { ownerAlert?: boolean; /** Bazaar situation (Stage 5): Eid rush, rain… */ priceMult?: number } = {}) {
     this.merchant = merchant;
     this.item = item;
     // Work on a copy; the caller commits `state` back explicitly.
@@ -82,6 +82,7 @@ export class BargainSession {
     if (def.defect === 'fake') this.perceivedValue = this.defectSpotted ? def.baseValue : 450; // the shiny necklace fools the unwary
     else if (def.defect === 'broken') this.perceivedValue = this.defectSpotted ? def.baseValue * 0.5 : def.baseValue;
     else this.perceivedValue = def.baseValue;
+    this.perceivedValue *= opts.priceMult ?? 1;
 
     const noise = 1 + (rng.next() * 2 - 1) * merchant.priceNoise;
     this.reservation = Math.min(this.state.budgetLeft, Math.max(5, this.perceivedValue * pref * merchant.capFraction * noise));

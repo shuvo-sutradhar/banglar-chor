@@ -118,3 +118,19 @@ The model is built by code inside Blender, judged from rendered previews (`docs/
 6. Hair is a single glossy shell (no cards/strands).
 
 What needs a human artist: sculpt pass + normal bake (face, hands, torso), hand-tuned face loops and a proper mouth, manual UV layout, hand-painted texture detail, and an animation polish pass (Caught, Celebrate, Run).
+
+## Phase 4B additions
+| Clip | Frames | Loop | Use | Notes |
+|---|---|---|---|---|
+| `Dig` | 32 (1.07 s ≈ one beat at 1.05 s) | yes | entry challenge | wind-up → strike at **0.55** (`digImpact` in metadata) → pry → flick soil; left hand braced on the knee (IK). The runtime positions the clip so the strike lands on each beat |
+| `Tired` | 48 | yes | out of breath (idle while exhausted), resting at the wall | hands on knees (IK), two pants per loop, jaw open |
+| `Eat` | 48 | yes | safehouse meals | squat, plate in the left hand, right hand to the mouth, chewing (jaw), happy brows; played with the lungi tucked (the long lungi clips in a squat) |
+
+**Props.** `Tool_bamboo-khunti`, `Tool_soft-khurpi`, `Tool_tin-kodal`, `Tool_iron-shabol`:
+- 26–48 faces each, 372 triangles in total;
+- one material `Thief_Props` with a `COLOR_0` vertex colour;
+- each node parented to the `hand_R` joint. The grip sits inside the fist along the hand bone's forward (Z) axis.
+
+**QA (`qa_character.py`).** The new clips have 0 leg vertices outside the tucked (1.0) or half-tucked (0.8) lungi; the untucked lungi clips in `Dig`/`Eat`, so the game always tucks it there. Foot sliding is unchanged (≤ 0.004 m/s).
+
+**Budget.** 12,800 / 13,000 triangles, 1,462 / 1,536 KB, 32 / 40 joints, 3 materials. There is little headroom left: the next character feature should come with a budget review.

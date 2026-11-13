@@ -2,6 +2,9 @@
  * Comic preparation ritual (README §6): purely cosmetic fantasy — oil shine, lungi tuck,
  * gamcha headband. Three short timing stages; each always completes eventually (no soft lock).
  */
+/** Seconds an over-held tuck waits for a late key-up before releasing itself (see `update`). */
+export const TUCK_RELEASE_GRACE = 0.35;
+
 export type PrepStage = 'oil' | 'tuck' | 'gamcha' | 'done';
 export type PrepResult = 'hit' | 'miss' | 'complete' | 'auto-complete' | 'too-loose' | 'too-tight' | 'ignored';
 
@@ -118,9 +121,16 @@ export class PreparationRitual {
     return g > zoneMax ? 'too-tight' : 'too-loose';
   }
 
-  /** Call per frame: an over-held tuck releases itself. */
+  /**
+   * Call per frame: an over-held tuck releases itself. The auto-release waits a short grace
+   * after the gauge fills, so a key-up that happened in time but is delivered after a long frame
+   * (slow device) is still judged on its own timestamp; the auto-release is judged at the moment
+   * the gauge filled, so the grace never helps an over-hold.
+   */
   update(t: number): PrepResult | null {
-    if (this.stage === 'tuck' && this.holdStart !== null && this.tuckGauge(t) >= 1) return this.release(t);
+    if (this.stage !== 'tuck' || this.holdStart === null) return null;
+    const fullAt = this.holdStart + 1 / PREP_TUNING.tuck.fillPerSec;
+    if (t >= fullAt + TUCK_RELEASE_GRACE) return this.release(fullAt);
     return null;
   }
 

@@ -20,6 +20,10 @@ import { ThiefModel } from './ThiefModel';
 import { setAction } from './rigTypes';
 import { FOOTSTEP_NOISE } from '../systems/noise';
 import { audio } from '../audio/AudioManager';
+import { nightBody } from '../systems/nightBody';
+import { say } from '../systems/nightActions';
+import { THIEF_NAME } from '../data/dialogue';
+import { voiceLine } from '../audio/voiceLines';
 
 type KinematicController = ReturnType<ReturnType<typeof useRapier>['world']['createCharacterController']>;
 
@@ -65,6 +69,7 @@ export function Player({ spawn = PLAYER_SPAWN }: { spawn?: readonly [number, num
       heading: Math.PI,
       lastMode: 'idle' as MovementMode,
       strideAccum: 0,
+      breathTimer: 0,
     }),
     [],
   );
@@ -154,9 +159,12 @@ export function Player({ spawn = PLAYER_SPAWN }: { spawn?: readonly [number, num
 
     input.readMove(motor.move);
     const magnitude = cameraRelativeDirection(motor.move.x, motor.move.y, camera.yaw, motor.direction);
-    const mode = resolveMovementMode({ inputMagnitude: magnitude, sprintHeld: input.sprintHeld, crouched: input.crouched, grounded: motor.grounded });
+    // Stamina gates sprinting (Phase 4B): an empty thief walks until he has caught his breath.
+    const nb = nightBody.current;
+    const stamina = nb.stamina;
+    const mode = resolveMovementMode({ inputMagnitude: magnitude, sprintHeld: input.sprintHeld && stamina.canSprint, crouched: input.crouched, grounded: motor.grounded });
     // Carried weight slows walking and especially sprinting (greed vs. escape, README §8).
-    const speed = targetSpeedFor(mode, magnitude, player.loadRatio);
+    const speed = targetSpeedFor(mode, magnitude, player.loadRatio) * (mode === 'run' ? nb.loadout.mods.runSpeed : 1);
     motor.desired.x = motor.direction.x * speed;
     motor.desired.z = motor.direction.z * speed;
     stepHorizontalVelocity(motor.velocity, motor.desired, dt);
@@ -208,12 +216,30 @@ export function Player({ spawn = PLAYER_SPAWN }: { spawn?: readonly [number, num
     }
     if (player.action === 'pickup' && player.actionTime > 0.6) setAction(player, null);
 
+    // Stamina, breathing and the fatigue reaction.
+    if (stamina.step(dt, effectiveMode === 'run', player.loadRatio)) {
+      audio.play('pant');
+      if (!nb.tiredShown) {
+        nb.tiredShown = true;
+        say(voiceLine('thief.sprint.out')!.text, THIEF_NAME);
+      }
+    }
+    if (!stamina.exhausted && stamina.ratio > 0.6) nb.tiredShown = false;
+    player.tired = stamina.exhausted || stamina.ratio < 0.2;
+    motor.breathTimer -= dt;
+    if (motor.breathTimer <= 0 && stamina.ratio < 0.4) {
+      motor.breathTimer = 0.9 + stamina.ratio * 1.5;
+      audio.play('breath', { gain: 1 - stamina.ratio });
+    }
+    useHudStore.getState().setStamina(stamina.ratio, stamina.exhausted);
+
     // Footsteps are real noise events at the player's position (README §7).
     motor.strideAccum += actual * dt;
     if (motor.strideAccum >= FOOTSTEP_NOISE.strideMeters && motor.grounded) {
       motor.strideAccum = 0;
       const f = effectiveMode === 'run' ? FOOTSTEP_NOISE.run : effectiveMode === 'crouch-walk' ? FOOTSTEP_NOISE.crouch : FOOTSTEP_NOISE.walk;
-      const radius = f.radius * (1 + FOOTSTEP_NOISE.loadRadiusBoost * player.loadRatio);
+      // Equipment (cloth feet / slapping চটি) and the night (wedding drums) scale footstep noise.
+      const radius = f.radius * (1 + FOOTSTEP_NOISE.loadRadiusBoost * player.loadRatio) * nb.loadout.mods.footstepNoise * nb.plan.footstepMult;
       runtime.noise.emit({ x: nx, y: ny, z: nz, radius, severity: f.severity, source: 'footstep', byPlayer: true }, runtime.simTime);
       audio.play('footstep', { gain: effectiveMode === 'run' ? 0.8 : effectiveMode === 'crouch-walk' ? 0.25 : 0.5 });
     }

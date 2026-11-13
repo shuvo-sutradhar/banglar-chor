@@ -22,3 +22,14 @@ Tooling (dev-only, not shipped): `@gltf-transform/core|functions|extensions` 4.2
 | `assets-source/blender/characters/textures/Thief_Skin_BaseColor.png`, `Thief_Skin_ORM.png`, `Thief_Cloth_BaseColor.png` | Cycles bakes of procedural materials (vertex paint, tartan/gamcha checks, eyes, hair) | Original. The lungi and gamcha check patterns are generic traditional checks, designed in code |
 
 No third-party models, textures, HDRIs or animations were used. Tooling (not shipped): Blender 5.3.0 (GPL; outputs are ours), glTF Transform 4.2.1 (MIT).
+
+## Phase 4B additions (all original)
+| Asset | Made by | Notes |
+|---|---|---|
+| `thief.glb` v4B (1,462 KB, 12.8k tris, 32 joints, **21 clips**, 3 materials) | Blender 5.3.0 scripts | New clips `Dig`, `Tired`, `Eat` (`th_anim.py`); four fictional cartoon hand tools (`th_props.py`), vertex-coloured, bone-parented to `hand_R` |
+| Night / morning / market / safehouse ambience | Synthesised at runtime (`src/game/audio/ambienceScapes.ts`) | Original Web Audio synthesis. No samples, no field recordings, nothing to license |
+| 22 new SFX (tool strikes, clang, breathing, eating, shop, dog, household, cartoon catch) | Synthesised at runtime (`AudioManager.ts`) | Original |
+| Bengali dialogue text (128 lines) and the recording script `docs/VOICE_RECORDING_SCRIPT.md` | Written for this project | Original. **No voice recordings exist yet.** When recordings are added, list each performer or voice source (and its licence) here before release |
+| Safehouse set, village dog, dirt clods | Procedural three.js meshes in code | Original |
+
+Still no third-party models, textures, sounds, voices or animations.

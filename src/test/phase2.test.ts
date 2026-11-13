@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LOOT, type LootId } from '../game/data/loot';
 import { generateHouseLoot, HOUSE_PROFILES } from '../game/data/houses';
 import { EntryChallenge } from '../game/systems/entryChallenge';
-import { PreparationRitual, PREP_TUNING } from '../game/systems/preparation';
+import { PreparationRitual, PREP_TUNING, TUCK_RELEASE_GRACE } from '../game/systems/preparation';
 import { canCarry, crossedLoadCue, dropItem, loadRatio, pickupItem, totalWeight, type ItemsState, type WorldItem } from '../game/systems/inventory';
 import { computeNightSummary, createRun, escapeOutcome, nightMinutesAt, resolveNight } from '../game/systems/runLogic';
 import { hearingStrength, NoiseBus } from '../game/systems/noise';
@@ -12,7 +12,7 @@ import { segmentClear } from '../game/ai/navGraph';
 import { RAHIM_FOOTPRINT, VILLAGE_NAV, VILLAGE_OBSTACLES, VILLAGER_ROUTE, inExitZone } from '../game/ai/villageNav';
 import { canTransition } from '../game/systems/runPhases';
 import { currentObjective } from '../game/systems/objectives';
-import { PausableClock } from '../lib/PausableClock';
+import { minigameTimeScale, PausableClock } from '../lib/PausableClock';
 import { formatKg, formatTaka, toBnDigits } from '../lib/format';
 
 const toWorld = (_h: string, l: [number, number, number]): [number, number, number] => [l[0], l[1], l[2]];
@@ -218,7 +218,24 @@ describe('preparation ritual', () => {
     const p = new PreparationRitual();
     p.stage = 'tuck';
     p.holdStartAt(0);
-    expect(p.update(2)).toBe('too-tight');
+    // (the auto-release now waits TUCK_RELEASE_GRACE after the gauge fills at ~1.67 s)
+    expect(p.update(2.5)).toBe('too-tight');
+  });
+  it('a correctly timed release delivered after a long frame is judged on its own timestamp', () => {
+    const p = new PreparationRitual();
+    p.stage = 'tuck';
+    p.holdStartAt(0);
+    // Gauge filled at 1/0.6 ≈ 1.67 s; the next frame is processed at 1.8 s (slow device)…
+    expect(p.update(1.8)).toBeNull();
+    // …and the key-up that happened at 1.2 s (inside the zone) arrives afterwards.
+    expect(p.release(1.2)).toBe('complete');
+    expect(p.tuck).toBe(1);
+  });
+  it('the grace never rescues an over-hold: auto-release is judged when the gauge filled', () => {
+    const p = new PreparationRitual();
+    p.stage = 'tuck';
+    p.holdStartAt(0);
+    expect(p.update(1.67 + TUCK_RELEASE_GRACE + 0.01)).toBe('too-tight');
   });
 });
 
@@ -411,6 +428,28 @@ describe('input timing fairness', () => {
     clk.tick();
     expect(clk.at(1900)).toBeCloseTo(clk.now() - 0.1);
     expect(clk.at(undefined)).toBeCloseTo(clk.now());
+  });
+  it('below 2 FPS an on-time input is still judged at its own timestamp (not at handler time)', () => {
+    let wall = 1000;
+    const clk = new PausableClock(() => wall);
+    clk.tick(); // last frame at 1000 ms
+    const tapAt = 1700; // the player tapped 0.7 s after the last frame (a ~1.4 FPS device)…
+    wall = 2300; // …and the handler ran 0.6 s later still
+    expect(clk.at(tapAt)).toBeCloseTo(0.7);
+    expect(clk.at(wall + 500)).toBeCloseTo(clk.now()); // future timestamps are never trusted
+  });
+  it('the test-only minigame time scale slows game time uniformly (default 1)', () => {
+    expect(minigameTimeScale.value).toBe(1);
+    let wall = 0;
+    const clk = new PausableClock(() => wall);
+    minigameTimeScale.value = 0.25;
+    try {
+      wall = 800;
+      expect(clk.tick()).toBeCloseTo(0.2);
+      expect(clk.at(600)).toBeCloseTo(0.15);
+    } finally {
+      minigameTimeScale.value = 1;
+    }
   });
 });
 

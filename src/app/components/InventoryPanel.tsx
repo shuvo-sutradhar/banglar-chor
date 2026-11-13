@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useRunStore } from '../../state/useRunStore';
 import type { GameRuntime } from '../../game/GameRuntime';
 import { LOOT, soundRiskLabelBn } from '../../game/data/loot';
-import { CARRY_CAPACITY_KG, totalWeight } from '../../game/systems/inventory';
+import { carryCapacityKg, totalWeight } from '../../game/systems/inventory';
 import { formatKg, toBnDigits } from '../../lib/format';
 import { audio } from '../../game/audio/AudioManager';
 import { say } from '../../game/systems/nightActions';
@@ -48,12 +48,12 @@ export function InventoryPanel({ runtime }: { runtime: GameRuntime }) {
         <div className="mb-3 text-sm">
           <div className="flex justify-between">
             <span>
-              ওজন: {formatKg(w)} / {formatKg(CARRY_CAPACITY_KG)}
+              ওজন: {formatKg(w)} / {formatKg(carryCapacityKg())}
             </span>
             <span className="text-moon">আনুমানিক মোট: ~৳{toBnDigits(value)}</span>
           </div>
           <div className="mt-1 h-2 overflow-hidden rounded-full bg-black/40">
-            <div className={`h-full rounded-full ${w / CARRY_CAPACITY_KG >= 0.85 ? 'bg-danger' : 'bg-lantern'}`} style={{ width: `${Math.min(100, (w / CARRY_CAPACITY_KG) * 100)}%` }} />
+            <div className={`h-full rounded-full ${w / carryCapacityKg() >= 0.85 ? 'bg-danger' : 'bg-lantern'}`} style={{ width: `${Math.min(100, (w / carryCapacityKg()) * 100)}%` }} />
           </div>
         </div>
         {inventory.length === 0 ? (

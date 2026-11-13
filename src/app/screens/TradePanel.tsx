@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PausableClock } from '../../lib/PausableClock';
+import { speakText } from '../../game/audio/voice';
+import { nightBody } from '../../game/systems/nightBody';
 import { formatTaka, toBnDigits, formatKg } from '../../lib/format';
 import { useAppStore } from '../../state/useAppStore';
 import { useHudStore } from '../../state/useHudStore';
@@ -125,7 +127,8 @@ export function TradePanel({ runtime }: { runtime: GameRuntime }) {
   const m = merchantId ? MERCHANTS[merchantId] : null;
   const say = useCallback((who: Line['who'], text: string) => {
     setLines((l) => [...l.slice(-3), { who, text, id: ++lineId.current }]);
-    useHudStore.getState().showCaption(text, who === 'thief' ? THIEF_NAME : m?.nameBn);
+    // Voiced when the line is in the manifest; the trade log above always keeps the text.
+    if (!speakText(text)) useHudStore.getState().showCaption(text, who === 'thief' ? THIEF_NAME : m?.nameBn);
   }, [m]);
 
   // Patience recovers a little each time you come back to a merchant.
@@ -170,7 +173,7 @@ export function TradePanel({ runtime }: { runtime: GameRuntime }) {
     const item = inventory.find((i) => i.instanceId === instanceId);
     const state = useRunStore.getState().run?.market?.merchants[merchantId];
     if (!item || !state) return;
-    const s = new BargainSession(m, state, item, seed, { ownerAlert: useRunStore.getState().rahimRecognition > 30 });
+    const s = new BargainSession(m, state, item, seed, { ownerAlert: useRunStore.getState().rahimRecognition > 30, priceMult: nightBody.current.plan.priceMult });
     session.current = s;
     setPending(null);
     if (s.phase === 'refused') {

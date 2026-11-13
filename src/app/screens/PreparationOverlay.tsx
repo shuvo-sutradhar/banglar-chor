@@ -8,6 +8,8 @@ import { setAction, type ActionPose } from '../../game/characters/rigTypes';
 import { PREP_LINES, THIEF_NAME } from '../../game/data/dialogue';
 import { audio } from '../../game/audio/AudioManager';
 import { debugHooks } from '../../game/debugHooks';
+import { TonightBrief } from '../components/TonightBrief';
+import { speakText } from '../../game/audio/voice';
 
 const STAGE_INFO: Record<Exclude<PrepStage, 'done'>, { title: string; how: string; action: string }> = {
   oil: { title: '১. সরিষার তেল মাখো', how: 'দাগটা মাঝের সোনালি ঘরে এলেই চাপো (৩ বার)', action: 'মাখো!' },
@@ -57,7 +59,8 @@ export function PreparationOverlay({ runtime }: { runtime: GameRuntime }) {
       if (r === 'ignored') return;
       const say = (text: string, good: boolean) => {
         setFeedback({ text, good, id: ++fbId.current });
-        useHudStore.getState().showCaption(text, THIEF_NAME);
+        // Voiced through the dialogue director once recorded; the panel always shows the text.
+        if (!speakText(text)) useHudStore.getState().showCaption(text, THIEF_NAME);
       };
       syncCosmetic();
       if (stageBefore === 'oil') {
@@ -190,6 +193,7 @@ export function PreparationOverlay({ runtime }: { runtime: GameRuntime }) {
 
   return (
     <div className="safe-pad pointer-events-none fixed inset-0 z-20 flex flex-col justify-end" data-testid="prep-overlay">
+      <TonightBrief />
       <div className="pointer-events-auto mx-auto mb-2 w-full max-w-md">
         <div className="panel p-4">
           <div className="mb-2 flex items-center justify-between gap-2">

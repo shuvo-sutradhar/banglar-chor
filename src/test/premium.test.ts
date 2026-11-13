@@ -5,8 +5,11 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { ACTION_CLIPS, BLINK_DURATION, blinkAmount, CARRY_CLIP_THRESHOLD, chooseClip, missingRequiredClips, nextBlinkDelay, parseMeta, resolveClip, syncedTimeScale } from '../game/characters/glb/clipSelect';
 import { applyCutout, CUTOUT } from '../game/effects/cameraCutout';
 import type { ActionPose } from '../game/characters/rigTypes';
+import { EQUIPMENT } from '../game/data/economy';
+import { DIG_IMPACT } from '../game/characters/glb/clipSelect';
 
-const ALL = new Set(['Idle', 'Walk', 'Run', 'CrouchIdle', 'CrouchWalk', 'Sneak', 'Interact', 'Pickup', 'Carry', 'PreparationOil', 'PreparationLungi', 'PreparationGamcha', 'Suspicious', 'Frightened', 'ChaseReaction', 'Caught', 'Celebrate', 'Crawl']);
+const ALL = new Set(['Idle', 'Walk', 'Run', 'CrouchIdle', 'CrouchWalk', 'Sneak', 'Interact', 'Pickup', 'Carry', 'PreparationOil', 'PreparationLungi', 'PreparationGamcha', 'Suspicious', 'Frightened', 'ChaseReaction', 'Caught', 'Celebrate', 'Crawl', 'Dig', 'Tired', 'Eat']);
+const PHASE4B_CLIPS = ['Dig', 'Tired', 'Eat'];
 const SPEEDS = { Walk: 1.5, Run: 4.2, CrouchWalk: 0.9, Carry: 1.5, Crawl: 0.6 };
 const base = { mode: 'idle' as const, speed: 0, action: null, carry: 0 };
 
@@ -68,7 +71,11 @@ describe('thief GLB asset (placeholder) meets the character spec', () => {
     for (const b of ['root', 'hips', 'spine', 'chest', 'neck', 'head', 'upperarm_L', 'forearm_L', 'hand_L', 'upperarm_R', 'thigh_L', 'shin_L', 'foot_L', 'thigh_R', 'shin_R', 'foot_R']) expect(joints.has(b), b).toBe(true);
     const clips = new Set(root.listAnimations().map((a) => a.getName()));
     expect(missingRequiredClips(clips)).toEqual([]);
-    for (const c of ALL) expect(clips.has(c), c).toBe(true);
+    // The placeholder predates Phase 4B: it has the 18 Phase 4A clips, and the new ones fall back.
+    for (const c of ALL) if (!PHASE4B_CLIPS.includes(c)) expect(clips.has(c), c).toBe(true);
+    expect(resolveClip('Dig', clips)).toBe('Interact');
+    expect(resolveClip('Tired', clips)).toBe('Idle');
+    expect(resolveClip('Eat', clips)).toBe('Interact');
     let tris = 0;
     for (const m of root.listMeshes()) for (const p of m.listPrimitives()) tris += (p.getIndices()?.getCount() ?? 0) / 3;
     expect(tris).toBeLessThanOrEqual(6000);
@@ -79,7 +86,7 @@ describe('thief GLB asset (placeholder) meets the character spec', () => {
 });
 
 describe('thief GLB asset (Blender, Phase 4A) meets the character spec', () => {
-  it('has the skeleton, all 18 clips, shape keys, two materials, metadata and the hero budget', async () => {
+  it('has the skeleton, all 21 clips, shape keys, three materials, hand tools, metadata and the hero budget', async () => {
     const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
     const doc = await io.read('public/assets/models/characters/thief.glb');
     const root = doc.getRoot();
@@ -104,12 +111,24 @@ describe('thief GLB asset (Blender, Phase 4A) meets the character spec', () => {
         expect(moved, name).toBeGreaterThan(100);
       });
     }
-    expect(new Set(root.listMaterials().map((m) => m.getName()))).toEqual(new Set(['Thief_Skin', 'Thief_Cloth']));
+    expect(new Set(root.listMaterials().map((m) => m.getName()))).toEqual(new Set(['Thief_Skin', 'Thief_Cloth', 'Thief_Props']));
+    // Phase 4B: one bone-parented prop per tool in the equipment table, under the right hand.
+    const hand = root.listNodes().find((n) => n.getName() === 'hand_R');
+    expect(hand).toBeTruthy();
+    const under = new Set<string>();
+    const walk = (n: NonNullable<typeof hand>) => n.listChildren().forEach((c) => (under.add(c.getName()), walk(c)));
+    walk(hand!);
+    for (const e of EQUIPMENT.filter((x) => x.slot === 'tool')) expect(under.has(`Tool_${e.id}`), `Tool_${e.id}`).toBe(true);
+    const props = root.listNodes().filter((n) => n.getName().startsWith('Tool_'));
+    for (const n of props) expect(n.getMesh()?.listPrimitives().every((p) => p.getMaterial()?.getName() === 'Thief_Props' && p.getAttribute('COLOR_0'))).toBe(true);
     expect(root.listNodes().some((n) => n.getName() === 'Headband' && n.getMesh())).toBe(true);
     // Shape keys default to 0 (the runtime drives them).
     for (const m of root.listMeshes()) for (const w of m.getWeights()) expect(w).toBe(0);
     const meta = root.listNodes().map((n) => parseMeta((n.getExtras() as { sidhel?: unknown }).sidhel)).find(Boolean);
     expect(meta?.clipSpeeds).toMatchObject({ Walk: 1.5, Run: 4.2, CrouchWalk: 0.9, Sneak: 1.1, Carry: 1.5, Crawl: 0.6 });
+    // The runtime's dig phase-lock assumes the authored impact frame.
+    const rawMeta = root.listNodes().map((n) => (n.getExtras() as { sidhel?: unknown }).sidhel).find(Boolean);
+    expect(JSON.parse(String(rawMeta)).digImpact).toBe(DIG_IMPACT);
   });
 });
 

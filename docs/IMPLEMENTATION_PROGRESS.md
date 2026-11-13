@@ -130,3 +130,38 @@
 - **Bug found and fixed:** the optimiser zeroed morph targets (D-050); the lungi did not tuck in game. Now guarded by the optimiser and a unit test.
 - **Performance:** see `docs/PERFORMANCE_BUDGETS.md` (same draw calls as the placeholder, +6.5k tris, 12 MB GPU textures at High / 4 MB at Low, mixer ~0.06 ms/frame). Not measured on real hardware.
 - **Next exact task:** review the previews in `docs/screenshots/phase4a/`; then either an artist polish pass on the thief, or Phase 4B: NPCs on the shared rig (budgets in PERFORMANCE_BUDGETS.md).
+
+## Phase 4B: living village, voices, tool action, food economy, progression, mobile (2026-11-13)
+- [x] **Stage 0: stabilise.**
+  - **Baseline:** the shape keys are verified non-empty in the file. `npm run check` was 116/116 and the build passed on the owner's checkpoint commit `cf914a0` (the Phase 4A fixes).
+  - **Flakiness root cause, measured** (D-052): frame quantisation at ~2.3 FPS. Up to 0.5 s of physics per frame shares one input sample, so a walking thief moves ~1.3 m per observable frame. It is not "machine load" by assumption.
+  - **Fix:** test-only controllable simulation time (`setMaxFrameStep`), precise mode near waypoints, game-time walk budgets, waits for the first frames and the prep hook.
+  - **Two genuine bugs fixed:** the tuck auto-release ignored late key-ups; a low-priority line could overwrite an instruction caption.
+- [x] **Stage 1: audio.**
+  - Mix buses (master, ambience, SFX, voice, UI) with independent sliders; spatial model (roll-off, pan by camera yaw, air absorption).
+  - Layered original night soundscape with emitters at real map positions; morning, market and safehouse scapes; 22 new SFX.
+  - Voice director (priority, queue, cooldowns, subtitles synced to playback, family/rough) and a 128-line manifest including all of the brief's lines.
+  - Recording script generator; file-drop pipeline (`available.json`).
+  - Cartoon catch cue list synced to the vignette, skippable.
+  - Silent buses build no audio graph.
+  - **No voice recordings exist** (honest: subtitles only).
+- [x] **Stage 2: tool action.**
+  - **Blender:** new `Dig` / `Tired` / `Eat` clips and four cartoon tool props on `hand_R`.
+  - **In game:** the equipped tool is shown in hand, with the Dig swing phase-locked to the beat; dirt clods fly on good strikes. Strike, scrape and clang sounds depend on the tool.
+  - **Mechanics:** stamina per swing, with tired swings weaker; rest (R or a button) pauses the beats and settles the noise; retreat. Equipment and food modify the challenge from data. NPC hearing and chase are unchanged.
+- [x] **Stage 3: energy, stamina, food.**
+  - Stamina gates sprinting and recovers; energy (saved) scales it and never fails a run.
+  - Breathing and panting audio, a fatigue line and the hands-on-knees Tired clip; HUD bar; night snacks.
+  - Food with costs, energy and next-night effects; a free meal and nap once per day.
+- [x] **Stage 4: safehouse and upgrades.**
+  - A day yard with the thief acting out each choice.
+  - Food, nap, equipment (3 slots, 9 items, every upgrade with a trade-off) and supplies.
+  - Bank, earnings and spending tracked separately; save v3 with migration and salvage.
+  - Idempotent settlement and transactions.
+  - Results → safehouse → next night; menu "continue".
+- [x] **Stage 5: living village.**
+  - Night 1 is the baseline. From night 2: a night modifier, patrol variant, the dog (growl → bark), and 2–3 household noises (not attributed to the player).
+  - Village memory (heat) with capped effects and gossip.
+  - Market situations; a "tonight" brief before every night.
+- [x] **Stage 6: mobile UX.** Dead-zone setting, floating joystick base, release on blur/hidden, a 220 ms tap guard, left-handed layout, sprint exhaustion state, bottom-sheet safehouse, ≥ 44 px targets (MOBILE_UX_QA.md).
+- [x] **Stage 7: performance/QA instrumentation.** Simulation-step CPU, HUD React commits per second, audio events per second; `tests/visual/perf-phase4b.mjs`.

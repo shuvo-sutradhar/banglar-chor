@@ -526,6 +526,87 @@ def crawl(P, p):
     face(P, "effort")
 
 
+# ------------------------------------------------------------------ Phase 4B clips
+# Impact frame of the Dig loop (fraction of the cycle). The game phase-locks the clip so this
+# frame lands exactly on each rhythm beat (GlbCharacter: DIG_IMPACT).
+DIG_IMPACT = 0.55
+
+
+@clip("Dig", 32, ik_arms="LR")
+def dig(P, p):
+    """One swing of the cartoon spade per beat: wind up, strike the ground at the wall base,
+    pry and flick the soil aside. Left hand braces on the left knee. In place, looped."""
+    stance_base(P, 0.5, arms=False)
+    P.foot("L", fwd=0.13, out=0.05, yaw=10).foot("R", fwd=-0.08, out=0.05, yaw=14, pitch=12, dz=0.014)
+    up = seq(p, [(0, 0.0), (0.12, 0.0), (0.42, 1.0), (DIG_IMPACT, 0.0), (1.0, 0.0)])
+    hit = seq(p, [(0, 0.0), (DIG_IMPACT - 0.04, 0.0), (DIG_IMPACT, 1.0), (DIG_IMPACT + 0.12, 0.35), (1.0, 0.0)])
+    pry = seq(p, [(0, 0.0), (DIG_IMPACT + 0.05, 0.0), (0.78, 1.0), (0.9, 0.3), (1.0, 0.0)])
+    toss = seq(p, [(0, 0.0), (0.78, 0.0), (0.88, 1.0), (1.0, 0.0)])
+    P.l("hips", 0.01 * toss, 0.05, -0.3 + 0.03 * up - 0.025 * hit)
+    P.r("hips", 0, 0, -8 * toss)
+    P.r("spine", 26 - 10 * up + 10 * hit, 0, -6 * up + 10 * toss).r("chest", 12 - 8 * up + 6 * hit, 0, -6 * up)
+    P.r("neck", -14 + 6 * up).r("head", -8 + 4 * up - 6 * hit, 0, 3 * toss)
+    low = Vector((0.11, -0.46, 0.24))
+    high = Vector((0.17, -0.2, 1.08))
+    back = Vector((0.15, -0.34, 0.36))
+    side = Vector((0.3, -0.3, 0.44))
+    pos = low.lerp(high, up)
+    pos = pos.lerp(back, pry * (1 - toss))
+    pos = pos.lerp(side, toss)
+    # Tool tip points up/back at the top of the swing and down into the soil at impact.
+    # (measured on renders: larger pitch turns the tip further down; ~115 = horizontal forward)
+    pitch = 168 - 178 * up - 45 * pry * (1 - toss) - 60 * toss
+    P.hand("R", tuple(pos), (pitch, 0, -10 * toss))
+    P.pole("elbow", "R", 0.25, 0.25, -0.1 + 0.2 * up)
+    P.hand("L", (0.17, -0.2, 0.5 + 0.01 * hit), (70, 0, -30))
+    P.pole("elbow", "L", 0.35, 0.2, 0)
+    P.s("fingers", 0, 75, 0, side="R").s("thumb", 0, 45, 0, side="R").s("fingers", 0, 30, 0, side="L")
+    face(P, "effort")
+    P.r("jaw", 10 * hit)
+    P.r("gamcha_tail", -6 * hit + 4 * up, 0, 5 * toss)
+
+
+@clip("Tired", 48, ik_arms="LR")
+def tired(P, p):
+    """Out of breath: hands on knees, chest heaving (two pants per loop), looking up."""
+    stance_base(P, 0.4, arms=False)
+    P.foot("L", fwd=0.06, out=0.05, yaw=12).foot("R", fwd=-0.04, out=0.05, yaw=12)
+    pant = wave(p, 2)
+    P.l("hips", 0, 0.07, -0.15 + 0.006 * pant)
+    P.r("spine", 38 + 2.5 * pant).r("chest", 16 + 3 * pant).r("neck", -30).r("head", -16 + 2 * pant)
+    for sd in "LR":
+        P.hand(sd, (0.13, -0.15, 0.5 + 0.008 * pant), (70, 0, -35))
+        P.pole("elbow", sd, 0.3, 0.3, 0)
+    P.s("shoulder", 0, 0, 4 * pant)
+    P.s("fingers", 0, 20, 0)
+    face(P, "worried")
+    P.r("jaw", 14 + 6 * max(0.0, pant))
+
+
+@clip("Eat", 48, ik_arms="LR")
+def eat(P, p):
+    """Squatting with a plate (left hand), right hand scoops rice to the mouth, then chews happily."""
+    stance_base(P, 0.3, arms=False)
+    P.foot("L", fwd=0.1, out=0.07, yaw=16).foot("R", fwd=0.0, out=0.07, yaw=16)
+    P.l("hips", 0, 0.12, -0.46)
+    chew = max(0.0, wave(p, 4)) * smoothstep(0.5, 0.58, p)
+    lift = seq(p, [(0, 0.0), (0.18, 0.0), (0.45, 1.0), (0.6, 1.0), (0.85, 0.0)], loop=True)
+    P.r("spine", 24 - 8 * lift).r("chest", 10 - 4 * lift).r("neck", -10 + 6 * lift).r("head", -8 + 8 * lift, 0, 3 * chew)
+    # Targets are in armature space: the squat (hips −0.46) lowers the head to ≈ 1.0 m.
+    plate = Vector((0.06, -0.32, 0.42))
+    mouth = Vector((0.03, -0.2, 0.98))
+    scoop = seq(p, [(0, 0.0), (0.1, 1.0), (0.18, 0.0)], loop=True)
+    pos = (plate + Vector((-0.02, -0.02, 0.03 - 0.02 * scoop))).lerp(mouth, lift)
+    P.hand("R", tuple(pos), (40 - 120 * lift, 0, 10))
+    P.pole("elbow", "R", 0.2, 0.3, -0.2)
+    P.hand("L", tuple(plate + Vector((0.08, 0, -0.02))), (90, 0, -60))
+    P.pole("elbow", "L", 0.3, 0.2, -0.1)
+    P.s("fingers", 0, 30, 0)
+    face(P, "smug")
+    P.r("jaw", 9 * chew + 6 * lift * (1 - chew))
+    P.l("brow_L", 0, 0, 0.004 * chew).l("brow_R", 0, 0, 0.004 * chew)
+
+
 # ------------------------------------------------------------------ authoring + bake
 def _select_deform(arm):
     for b in arm.data.bones:
@@ -622,4 +703,4 @@ def finalize(arm):
         tr.mute = True
     speeds = {n: c["speed"] for n, c in CLIPS.items() if c["speed"]}
     import json
-    arm["sidhel"] = json.dumps({"version": 2, "clipSpeeds": speeds, "generator": "Blender build_thief.py (Phase 4A)"})
+    arm["sidhel"] = json.dumps({"version": 2, "clipSpeeds": speeds, "generator": "Blender build_thief.py (Phase 4B)", "digImpact": DIG_IMPACT})

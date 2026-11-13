@@ -19,7 +19,10 @@ export type ActionPose =
   | 'sit-up'
   | 'sit'
   | 'examine'
-  | 'wave';
+  | 'wave'
+  // Phase 4B
+  | 'eat'
+  | 'rest';
 
 /** Cosmetic preparation state (README §6 — purely visual fantasy). */
 export type Cosmetic = { oil: number; tuck: number; headband: boolean };
@@ -34,6 +37,15 @@ export type RigDriver = {
   cosmetic?: Cosmetic;
   /** 0..1 carried load: shows a sack on the back that grows with it. */
   carry?: number;
+  /** Out of breath (Phase 4B): idle becomes the hands-on-knees Tired clip. */
+  tired?: boolean;
+  /** Equipped hand tool shown in the hand (equipment id), or null. */
+  tool?: string | null;
+  /**
+   * Externally driven clip phase 0..1 for the current action (the Dig swing is phase-locked to
+   * the rhythm so the strike lands on the beat). null/undefined = normal playback.
+   */
+  clipPhase?: number | null;
 };
 
 export function setAction(driver: RigDriver, action: ActionPose | null): void {

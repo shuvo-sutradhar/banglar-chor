@@ -18,8 +18,9 @@ npm run assets:thief -- --export-only   # re-export after hand-editing thief.ble
 | Step | Script | Output |
 |---|---|---|
 | 1. Model | `assets-source/blender/scripts/thief/th_model.py` | Skin-modifier body (one continuous mesh: torso, arms, 4-finger + thumb hands, legs, feet) with a procedural sculpt pass; box-modelled head with the nose and ears **extruded from the head mesh**; eyes, sly lids, eye bags; swept brows, waxed moustache, smirk with teeth; oiled hair shell with a parting and quiff; parametric lungi with folds, waist roll and knot; gamcha; headband; tabiz |
+| 2b. Props | `th_props.py` | Phase 4B: four cartoon hand tools (`Tool_<equipment id>`), one vertex-coloured material `Thief_Props`, bone-parented to `hand_R` (rigid). The game shows only the equipped tool, only while it's in use |
 | 2. Rig | `th_rig.py` | `Thief_Rig`: 32 deform bones (spec §4). Body: Blender heat-map auto weights. Lungi, gamcha, face: computed weights. Shape keys `LungiTuck`, `Blink`. Joined into one mesh (`Thief`) + `Headband`. Limit 4 influences, normalised |
-| 3. Animate | `th_anim.py` | 18 clips authored on an IK control rig (feet always, hands where needed), sampled at 30 fps and **baked with `bpy.ops.nla.bake` (visual keying)** to FK on deform bones; control bones then deleted; each clip stashed on an NLA track |
+| 3. Animate | `th_anim.py` | 21 clips (Phase 4B: `Dig`, `Tired`, `Eat`) authored on an IK control rig (feet always, hands where needed), sampled at 30 fps and **baked with `bpy.ops.nla.bake` (visual keying)** to FK on deform bones; control bones then deleted; each clip stashed on an NLA track |
 | 4. Paint | `th_bake.py`, `th_paint.py` | Vertex paint (blush, stubble, palms/soles, lash line) and procedural node materials (tartan lungi, gamcha checks, iris/pupil/catch-light, hair sheen); Smart UV atlases (face ×2, eyes ×3 texel density); Cycles bake of diffuse colour × AO and roughness → `Thief_Skin` and `Thief_Cloth` |
 | 5. Save | `build_thief.py` | `assets-source/blender/characters/thief.blend` (textures packed) + PNGs in `characters/textures/` |
 | 6. Export | `../export_character.py` | `public/assets/models/characters/thief.glb` |
@@ -31,16 +32,16 @@ npm run assets:thief -- --export-only   # re-export after hand-editing thief.ble
 ### GLB export settings (`export_character.py`)
 GLB, +Y up, apply transforms/modifiers, skins, morph targets (positions only), `export_animation_mode='ACTIONS'` (every action → one glTF animation), force sampling every frame, `export_optimize_animation_size`, JPEG images (quality 88), no custom attributes, metadata from the armature's `sidhel` property → node extras. Draco **off** (the game must not fetch a decoder from a CDN).
 
-## Measured output (thief.glb)
+## Measured output (thief.glb, Phase 4B)
 | Metric | Value |
 |---|---|
-| File | **1,360 KB** (1,706 KB raw export → optimised) |
-| Triangles | 12,428 (body mesh 2 primitives + headband 1) |
-| Draw calls | 3 (same as the placeholder) |
-| Materials | 2 (`Thief_Skin`, `Thief_Cloth`) |
+| File | **1,462 KB** (1,755 KB raw export → optimised); Phase 4A was 1,360 KB |
+| Triangles | 12,800 (body 12,428 + 4 tools 372) |
+| Draw calls | 3 (+1 only while a tool is in hand) |
+| Materials | 3 (`Thief_Skin`, `Thief_Cloth`, `Thief_Props`) |
 | Textures | 3: skin base 1024² JPEG, cloth base 1024² JPEG, skin ORM 512² JPEG; GPU ≈ 12 MB (≈ 4 MB on Low, runtime-downscaled) |
 | Skeleton | 32 joints (`root` + 31 deform) |
-| Clips | 18, 30 fps, in place |
+| Clips | 21, 30 fps, in place. `Dig` impact frame 0.55 is stored in the metadata (`digImpact`) |
 | Morph targets | `LungiTuck` (1,503 verts), `Blink` (771 verts); positions only, dense (D-050) |
 
 ## Conventions

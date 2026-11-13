@@ -57,3 +57,38 @@ A player may leave the village edge before entering any house; the prompt then s
 ## 7. Score and results (Phase 3)
 - `computeRunScore` (D-034) is pure. The results screen shows the itemised breakdown, final money, outcome, a one-line summary, and the personal best.
 - Completed runs are saved locally (schema v2, last 20 runs, with v1 migration). Play again starts a clean run with a fresh seed.
+- **Phase 4B:** the run's money is also banked into the persistent profile (save v3). See §10 and ECONOMY_AND_PROGRESSION.md.
+
+## 8. The fictional cartoon tool challenge (Phase 4B)
+This is still an abstract rhythm game: a pulse ring closes on a target, and a tap on the beat fills Progress. It now has a body.
+- **The visible tool.** The thief kneels at the wall with his equipped cartoon tool, a Blender prop in his right hand. The Dig clip is phase-locked so the strike frame lands on each beat. Dirt clods fly on good strikes; the wall mark grows with Progress.
+- **Stamina cost.** Each swing costs stamina (6 × the tool factor). Stamina regenerates between beats after 0.8 s. A tired swing (not enough stamina) makes less progress, down to half.
+- **Rest (জিরাও, R or a button).** The beats stop, so nothing lapses; noise settles and stamina recovers 2.2× faster. The night clock keeps running, so resting is a real choice. On resume the next beat comes a full interval later, never instantly.
+- **Mistakes.** A tap between beats, or an untapped beat, raises the meter. It also emits a real world noise event at the wall, which Rahim (inside) and the patrol hear, scaled by the tool's noise factor. Metal tools clang on a mistake.
+- **Failure.** Noise at 100 is a loud crash: a big noise event, a 6 s retry cooldown, and NPCs investigate. **Retreat (থামো)** is always available. NPC investigation and chase behaviour are unchanged.
+- **Controls.** Space, E or Enter, or a tap anywhere on the panel; R or the button to rest.
+- **No real technique.** No real tool technique, structural weakness or entry method is modelled. The tools are toy-like props with game modifiers.
+
+## 9. The living village (Phase 4B)
+Tonight's plan is deterministic from (seed, night number, village heat): `systems/villageLife.ts`, unit-tested.
+- **Night 1 is always the familiar baseline,** so the player can learn the village first.
+- **Night modifiers (from night 2).** Each is announced in the preparation brief before it matters:
+  - normal (40 %);
+  - new moon (20 %): sight −15 %;
+  - full moon (20 %): sight +15 %, but next-day prices +10 %;
+  - wedding drums next door (20 %): footsteps −25 %, but the patrol walks 15 % faster.
+- **Patrol variants:** standard, reversed, or slow. After trouble (heat ≥ 40) the patrol is standard or reversed, i.e. less predictable. Sight cones always show the true range.
+- **Dog (from night 2).** It naps visibly beside the lane to Rahim's yard. Noise reaching it (or the player within 2 m) wakes it: it **growls first** (a "?" icon and growl, 1.4 s), and **barks only if the disturbance continues**. A bark is a world noise event (18 m) that the patrol hears and investigates. A crouched thief can pass at 2.6 m; walking wakes it.
+- **Household noises.** 2–3 per night after 1:30 AM, at least 25 minutes apart: a pot clatter, a cough, a door creak, cats. They are captioned and are real noise events **not attributed to the player**. They can pull the patrol away from Rahim's house (an opportunity) and never alert anyone to the thief.
+- **Village memory.**
+  - **Heat:** heat (ECONOMY_AND_PROGRESSION §7) raises how fast suspicion builds (≤ +30 %), Rahim's light sleep (≤ +25 %) and bazaar recognition (≤ +40 %).
+  - **Gossip:** villagers say "কাইলকা রাইতে নাকি চোর আইছিল…" after a night when the thief was seen, chased or caught.
+  - **Caps:** all effects are capped, so a bad night never makes the next one unfair.
+- **Market situation (from day 2):** normal, Eid rush (prices +15 %), rainy (−10 %), or extra watch (recognition +25 %, watchman 8 % faster). Shown in the brief.
+- **Fairness.** No event is unavoidable and none catches the player directly. Every event has a visible or audible trigger and a counter-play: crouch past the dog, wait for the patrol to check the noise, rest to let noise settle.
+
+## 10. Multi-night progression (Phase 4B)
+- **Loop:** night → bazaar → results (money banked once) → **safehouse** (eat, nap, buy and equip upgrades and supplies) → preparation → the next night. The day counter advances when a night starts.
+- **Energy and stamina:** energy (0–100, saved) scales stamina's ceiling and recovery. Low energy is a handicap, never a fail state, and the free meal plus a nap always restore it.
+- **Equipment:** every upgrade has a trade-off; no item dominates (ECONOMY_AND_PROGRESSION §4).
+- **Caught runs:** a run that ends in a catch banks nothing at night (all loot confiscated) and only the post-fine money at the market.

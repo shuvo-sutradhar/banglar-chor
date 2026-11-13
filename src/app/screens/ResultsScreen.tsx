@@ -28,10 +28,13 @@ export function ResultsScreen() {
   const runs = useAppStore((s) => s.runs);
   const saveOk = useAppStore((s) => s.lastSaveOk);
   const startRun = useAppStore((s) => s.startRun);
+  const goSafehouse = useAppStore((s) => s.goSafehouse);
+  const settlement = useAppStore((s) => s.lastSettlement);
+  const profile = useAppStore((s) => s.profile);
   const returnToMenu = useAppStore((s) => s.returnToMenu);
   const b = useMemo(() => (run ? computeRunScore(run) : null), [run]);
   if (!run || !b || !result) return null;
-  const best = personalBest({ version: 2, settings: useAppStore.getState().settings, preparationDone: true, runs });
+  const best = personalBest({ runs });
   const isBest = best?.id === result.id;
   const bad = b.outcome === 'night-caught' || b.outcome === 'market-caught';
   const rows: [string, number][] = [
@@ -133,18 +136,49 @@ export function ResultsScreen() {
           {saveOk ? '✓ ফলাফল শুধু এই ডিভাইসে সংরক্ষিত হয়েছে' : '⚠ এই ব্রাউজারে সংরক্ষণ করা গেল না'} — এটা কোনো অনলাইন বা যাচাই-করা র‍্যাংকিং নয়।
           {best && ` এই ডিভাইসের সেরা স্কোর: ${toBnDigits(best.score)} (${best.nickname})।`}
         </p>
+        {settlement && settlement.runId === result.id && (
+          <div className="mb-3 grid grid-cols-3 gap-2 rounded-xl bg-white/5 p-2 text-center text-sm" data-testid="bank-summary">
+            <div>
+              <div className="text-[11px] text-moon">এই রাতের কামাই</div>
+              <div className="font-semibold tabular-nums text-gold">+{formatTaka(settlement.earned)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-moon">জমানো টাকা</div>
+              <div className="font-semibold tabular-nums" data-testid="bank-after">
+                {formatTaka(settlement.bankAfter)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] text-moon">শক্তি</div>
+              <div className="font-semibold tabular-nums">
+                {toBnDigits(Math.round(settlement.energyBefore))} → {toBnDigits(Math.round(profile.energy))}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
             className="btn btn-primary flex-1"
             onClick={() => {
               audio.unlock();
+              goSafehouse();
+            }}
+            data-testid="to-safehouse"
+            autoFocus
+          >
+            ঘরে ফিরি — খাওয়া ও কেনাকাটা ›
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost flex-1"
+            onClick={() => {
+              audio.unlock();
               startRun();
             }}
             data-testid="play-again"
-            autoFocus
           >
-            আবার খেলি
+            সরাসরি পরের রাত
           </button>
           <button type="button" className="btn btn-ghost flex-1" onClick={returnToMenu} data-testid="to-menu">
             মূল মেনু

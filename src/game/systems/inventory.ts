@@ -1,8 +1,15 @@
 import { LOOT, type LootId } from '../data/loot';
 import type { HouseId } from '../data/houses';
 
-/** Maximum effective carrying capacity in kg (README §8 greed system). */
+import { nightBody } from './nightBody';
+
+/** Base carrying capacity in kg (README §8 greed system), the starter গামছার ঝোলা. */
 export const CARRY_CAPACITY_KG = 6;
+
+/** Tonight's capacity: the base plus the equipped bag (Phase 4B). */
+export function carryCapacityKg(): number {
+  return CARRY_CAPACITY_KG + (nightBody.current.loadout.mods.carryKg ?? 0);
+}
 
 export type InventoryItem = { instanceId: string; lootId: LootId; sourceHouseId: HouseId };
 export type WorldItem = InventoryItem & { position: [number, number, number]; dropped: boolean };
@@ -18,12 +25,12 @@ export function totalWeight(items: readonly InventoryItem[]): number {
   return items.reduce((s, i) => s + Math.round(LOOT[i.lootId].weight * 10), 0) / 10;
 }
 
-export function loadRatio(items: readonly InventoryItem[]): number {
-  return Math.min(1, totalWeight(items) / CARRY_CAPACITY_KG);
+export function loadRatio(items: readonly InventoryItem[], capacityKg = carryCapacityKg()): number {
+  return Math.min(1, totalWeight(items) / capacityKg);
 }
 
-export function canCarry(items: readonly InventoryItem[], lootId: LootId): boolean {
-  return Math.round((totalWeight(items) + LOOT[lootId].weight) * 10) <= CARRY_CAPACITY_KG * 10;
+export function canCarry(items: readonly InventoryItem[], lootId: LootId, capacityKg = carryCapacityKg()): boolean {
+  return Math.round((totalWeight(items) + LOOT[lootId].weight) * 10) <= Math.round(capacityKg * 10);
 }
 
 export function estimatedValueTotal(items: readonly InventoryItem[]): number {
@@ -31,11 +38,11 @@ export function estimatedValueTotal(items: readonly InventoryItem[]): number {
 }
 
 /** Atomic pickup: the item leaves the world and enters the inventory exactly once. */
-export function pickupItem(state: ItemsState, instanceId: string): PickupResult {
+export function pickupItem(state: ItemsState, instanceId: string, capacityKg = carryCapacityKg()): PickupResult {
   if (state.inventory.some((i) => i.instanceId === instanceId)) return { ok: false, reason: 'duplicate' };
   const world = state.worldItems.find((w) => w.instanceId === instanceId);
   if (!world) return { ok: false, reason: 'missing' };
-  if (!canCarry(state.inventory, world.lootId)) return { ok: false, reason: 'over-capacity' };
+  if (!canCarry(state.inventory, world.lootId, capacityKg)) return { ok: false, reason: 'over-capacity' };
   const item: InventoryItem = { instanceId: world.instanceId, lootId: world.lootId, sourceHouseId: world.sourceHouseId };
   return {
     ok: true,

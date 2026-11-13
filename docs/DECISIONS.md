@@ -176,3 +176,41 @@ Base colour atlases 1024² (JPEG in the GLB), one 512² ORM only where roughness
 
 ## D-051 · Character performance counters
 `perfCounters.ts` times procedural rig updates (`rig`) and the thief mixer (`mixer`) separately from rendering; `__sidhel.perf()`/`resetPerf()` and the snapshot's `thief.stats/loadMs` feed `tests/visual/perf-thief.mjs`. Cost: one `performance.now()` pair per rig per frame.
+
+## D-052 · Browser-test flakiness: frame quantisation, fixed with controllable simulation time
+Evidence, not machine-load hand-waving:
+- **Measured:** headless SwiftShader renders ~2.3 FPS, while simulation time keeps pace with wall time (sim/wall ≈ 0.95–1.03, `tests/smoke/time-ratio.mjs`). Rapier catches up with up to 0.5 s of fixed 1/60 steps per rendered frame (its own clamp), and **all of those steps share one input sample**. A walking thief therefore moves ~1.3 m per observable frame (sprint ~2.4 m), more than a 0.3 m arrival window, so final approaches random-walked. One failing run ended 4.6 m from the wall after a passing 1 m check.
+- **Fix (test-only):** `__sidhel.setMaxFrameStep(0.1)` caps the frame delta every system sees. The helpers enable this "precise mode" within 3 m of each waypoint, for final approaches and for facing. Walk budgets are now **game seconds** (simTime), with a 6× wall-clock safety cap.
+- **Scope:** no assertion was relaxed, and it is a no-op at ≥ 10 FPS.
+- **Two genuine findings along the way:**
+  1. An over-held lungi tuck auto-released on the frame the gauge filled, so a correctly timed key-up delivered after a long frame lost. It now waits a 0.35 s grace and judges the auto-release at the moment the gauge filled (`TUCK_RELEASE_GRACE`, unit-tested).
+  2. A low-priority Rahim mutter could overwrite the "retry later" instruction caption. The voice director now arbitrates dialogue, and info lines always show.
+- **Test-design note:** the entry challenge intentionally adds noise for untapped beats, so suites must not idle (or take screenshots) mid-rhythm. They use the new rest instead.
+
+## D-053 · Audio: original synthesis now, recordings pluggable later
+Ambience and SFX are synthesised at runtime (original, no licensing, ~0 bytes downloaded), on mix buses with spatialisation. Dialogue uses a manifest + director with a file-per-line convention. No recordings ship, and the game never fakes speech with beeps: unrecorded lines are timed subtitles. Paid AI voice generation was available through a connected service but was **not** used without the owner's explicit go-ahead (cost, licensing and publication are the owner's call).
+
+## D-054 · Save v3: bank starts at 0 on migration
+v2 run records stored a money *score*, not banked money, and mixed fines and caught runs. Crediting history retroactively would invent money, so migrated players start with ৳0, their settings and history intact, and a free meal + nap. New profiles also start at ৳0 and 80 energy.
+
+## D-055 · Idempotent progression operations
+Run settlement is idempotent by run id. Every purchase or meal carries a transaction id; duplicates are no-ops. State and save are updated together. This prevents double charges from double taps, re-dispatched events and reload-at-results. It is not anti-cheat (localStorage is editable).
+
+## D-056 · Energy never fails a run
+Energy scales stamina's ceiling (60–100 %) and regeneration (50–100 %). Exhaustion locks sprinting until stamina reaches 30 and makes digs weaker, and that is all. The free daily meal (+18) and nap (+20) exceed a typical night's cost (6–20). No hunger meter, no forced eating.
+
+## D-057 · Tool props in the character GLB, one shared material
+Four tools are bone-parented to `hand_R` in Blender (grip authored once), share `Thief_Props` with vertex colours (1 draw call when shown) and add 372 triangles (12,428 → 12,800, still ≤ 13,000). The game shows only the equipped tool, only while it's in use. The Dig clip's impact frame (0.55) is in the GLB metadata and asserted by a test; the runtime phase-locks the clip to the rhythm, so the strike lands on the beat.
+
+## D-058 · Night 1 is always the baseline
+Variation (modifier, dog, household noises, patrol variant, market situation) starts on night 2. New players learn the village as designed, and fresh-profile browser suites stay deterministic.
+
+## D-059 · Household noises are not the player's
+Household events emit real noise events with `byPlayer: false`, so the patrol may investigate them, but they never raise suspicion of the thief or start a chase. They create openings, never traps.
+
+## D-060 · Safehouse reuses the village set by day
+The safehouse is a compact yard at the village edge (cot, stove, sack) with the real thief rig acting out each choice (Eat clip with the lungi hitched up, nap, showing the equipped tool), framed by its own camera and daylight. No new zone, no extra physics world, no new download.
+
+## D-061 · Minigame clock: slow-device timestamp window, and test-controllable time
+- **Bug (real players on slow devices).** `PausableClock.at()` trusted an input's timestamp only within ±0.5 s of the last frame. Below 2 FPS (measured ~1.5 FPS in loaded headless runs), an on-time tap made more than 0.5 s after the last frame was judged at handler time, i.e. late. The window is now the 1 s hitch cap already used by `tick()`, and future timestamps are still never trusted (unit-tested).
+- **Test-only time scale.** `__sidhel.setMinigameTimeScale(k)` (debug builds only, resets with the bridge) runs the preparation, entry and persuasion clocks at k× real time. A driver whose every round trip takes seconds can then play the real-time rhythm. The judging logic, windows and noise rules are untouched; the helpers convert hook times (game ms) to wall ms by 1/k. It complements `setMaxFrameStep` (D-052), which does the same for physics.

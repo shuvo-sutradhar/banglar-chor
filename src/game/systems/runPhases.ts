@@ -10,7 +10,9 @@ export type GamePhase =
   | 'bazaar'
   | 'bargain'
   | 'caught'
-  | 'results';
+  | 'results'
+  /** Phase 4B: the thief's own yard by day — eat, rest, buy upgrades, prepare the next night. */
+  | 'safehouse';
 
 /**
  * Allowed run-state transitions (README §4). Every transition must be listed here;
@@ -18,8 +20,8 @@ export type GamePhase =
  * (The temporary Phase 1 `menu -> night` shortcut was removed in Phase 2; see D-007.)
  */
 export const PHASE_TRANSITIONS: Readonly<Record<GamePhase, readonly GamePhase[]>> = {
-  menu: ['preparation'],
-  preparation: ['night', 'menu'],
+  menu: ['preparation', 'safehouse'],
+  preparation: ['night', 'menu', 'safehouse'],
   night: ['entry', 'chase', 'caught', 'night-resolution', 'menu'],
   entry: ['interior', 'night', 'chase', 'caught', 'night-resolution', 'menu'],
   interior: ['night', 'chase', 'caught', 'night-resolution', 'menu'],
@@ -31,7 +33,8 @@ export const PHASE_TRANSITIONS: Readonly<Record<GamePhase, readonly GamePhase[]>
   dawn: ['bazaar', 'menu'],
   bazaar: ['bargain', 'results', 'chase', 'caught', 'menu'],
   bargain: ['bazaar', 'chase', 'caught', 'results', 'menu'],
-  results: ['menu', 'preparation'],
+  results: ['menu', 'preparation', 'safehouse'],
+  safehouse: ['preparation', 'menu'],
 };
 
 export function canTransition(from: GamePhase, to: GamePhase): boolean {
@@ -52,5 +55,5 @@ export function assertTransition(from: GamePhase, to: GamePhase): GamePhase {
 
 /** Phases where the player avatar exists and real-time simulation runs. */
 export function isSimulationPhase(phase: GamePhase): boolean {
-  return phase !== 'menu' && phase !== 'results';
+  return phase !== 'menu' && phase !== 'results' && phase !== 'safehouse';
 }

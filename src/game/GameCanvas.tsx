@@ -1,20 +1,26 @@
 import { Suspense, useEffect, useState } from 'react';
-import { readPerf, resetPerf } from './perfCounters';
+import { readPerf, resetPerf, simBegin, simEnd } from './perfCounters';
+import { minigameTimeScale } from '../lib/PausableClock';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Physics, useRapier } from '@react-three/rapier';
+import { Physics, useAfterPhysicsStep, useBeforePhysicsStep, useRapier } from '@react-three/rapier';
 import { PCFSoftShadowMap, type BufferGeometry, type Material, type Mesh, type Points } from 'three';
 import { useAppStore, WORLD_PHASES } from '../state/useAppStore';
 import { useRunStore } from '../state/useRunStore';
 import { debugEnabled, debugHooks, npcsDisabledForTests } from './debugHooks';
 import { thiefVisual } from './characters/glb/thiefAsset';
+import { nightBody } from './systems/nightBody';
+import { audio } from './audio/AudioManager';
+import { voice, voiceAvailability } from './audio/voice';
 import { WorldItems } from './world/WorldItems';
 import { NightDirector } from './systems/NightDirector';
+import { VillageLife } from './systems/VillageLifeDirector';
 import { PatrolNpc } from './characters/PatrolNpc';
 import { MOJNU_CONFIG } from './characters/npcConfigs';
 import { RahimSleeper } from './characters/RahimSleeper';
 import { CaughtScene } from './scenes/CaughtScene';
 import { PrepCamera, PrepStage } from './scenes/PrepStage';
 import { DawnScene } from './scenes/DawnScene';
+import { SafehouseCamera, SafehouseStage } from './scenes/SafehouseStage';
 import { BazaarScenery } from './world/BazaarScenery';
 import { BazaarWorld } from './systems/BazaarDirector';
 import { BAZAAR_SPAWN } from './world/bazaarLayout';
@@ -50,6 +56,13 @@ function QualityApplier({ quality }: { quality: QualityProfile }) {
   return null;
 }
 
+/** Times each physics frame (all before-step systems + Rapier); mounted first inside <Physics>. */
+function SimTimer() {
+  useBeforePhysicsStep(simBegin);
+  useAfterPhysicsStep(simEnd);
+  return null;
+}
+
 function SceneReadySignal() {
   const setSceneReady = useAppStore((s) => s.setSceneReady);
   useEffect(() => {
@@ -59,12 +72,25 @@ function SceneReadySignal() {
 }
 
 /** Debug hook for automated smoke tests: exposes read-only simulation state when `?debug=1` (or in dev). */
+const frameStepCap: { value: number | null } = { value: null };
+
 function DebugBridge() {
   const runtime = useGameRuntime();
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
+  const clock = useThree((s) => s.clock);
   useEffect(() => {
     if (!debugEnabled()) return;
+    const original = clock.getDelta.bind(clock);
+    clock.getDelta = () => {
+      const d = original();
+      return frameStepCap.value === null ? d : Math.min(d, frameStepCap.value);
+    };
+    const restoreClock = () => {
+      clock.getDelta = original;
+      frameStepCap.value = null;
+      minigameTimeScale.value = 1;
+    };
     const w = window as unknown as { __sidhel?: unknown };
     w.__sidhel = {
       snapshot: () => ({
@@ -104,6 +130,18 @@ function DebugBridge() {
         savedRuns: useAppStore.getState().runs.length,
         render: { calls: gl.info.render.calls, triangles: gl.info.render.triangles, geometries: gl.info.memory.geometries, textures: gl.info.memory.textures },
         listeners: { noise: runtime.noise.listenerCount, interactions: runtime.interactions.size, npcs: runtime.npcs.size },
+        // Phase 4B (read-only): progression, tonight's body/plan, audio and dialogue state.
+        profile: (() => {
+          const p = useAppStore.getState().profile;
+          return { bank: p.bank, energy: p.energy, day: p.day, owned: [...p.owned], equipped: { ...p.equipped }, supplies: { ...p.supplies }, buff: p.buff, heat: p.heat, spentFood: p.spentFood, spentUpgrades: p.spentUpgrades, credited: p.creditedRuns.length };
+        })(),
+        body: (() => {
+          const b = nightBody.current;
+          return { stamina: b.stamina.value, staminaMax: b.stamina.params.max, exhausted: b.stamina.exhausted, sprintSeconds: b.stamina.sprintSeconds, digs: b.stamina.digs, energyStart: b.loadout.energy, tool: runtime.player.tool ?? null, clipPhase: runtime.player.clipPhase ?? null, action: runtime.player.action, mods: b.loadout.mods, supplies: { ...b.supplies } };
+        })(),
+        plan: nightBody.current.plan,
+        audio: { ...audio.state, counts: Object.fromEntries(audio.counts) },
+        voice: { current: voice.current?.id ?? null, log: voice.log.slice(-12), files: voiceAvailability().files },
       }),
       /** Animation CPU counters (procedural rigs vs the thief's mixer), see perfCounters.ts. */
       perf: () => readPerf(),
@@ -129,11 +167,27 @@ function DebugBridge() {
       advanceClock: (sec: number) => {
         runtime.simTime += sec;
       },
+      /**
+       * Test-only controllable simulation time. Caps the frame delta every system sees (physics
+       * included), so at very low headless frame rates one rendered frame advances at most `sec`
+       * of game time instead of up to 0.5 s (Rapier's own clamp). Game time then runs slower
+       * than wall-clock time but movement per input sample stays small and deterministic.
+       * `null` restores normal real-time behaviour. Never used by gameplay.
+       */
+      setMaxFrameStep: (sec: number | null) => {
+        frameStepCap.value = sec;
+      },
+      /** Test-only: minigame clocks (preparation, entry, persuasion) run at this rate (1 = real time). */
+      setMinigameTimeScale: (scale: number) => {
+        minigameTimeScale.value = Math.min(1, Math.max(0.05, scale));
+      },
+      minigameTimeScale: () => minigameTimeScale.value,
     };
     return () => {
       delete w.__sidhel;
+      restoreClock();
     };
-  }, [runtime, gl, scene]);
+  }, [runtime, gl, scene, clock]);
   return null;
 }
 
@@ -172,6 +226,7 @@ function World({ quality }: { quality: QualityProfile }) {
 
   return (
     <Physics timeStep={1 / 60} paused={paused || !SIMULATING.includes(phase)} updatePriority={-50} gravity={[0, -22, 0]}>
+      <SimTimer />
       <SceneReadySignal />
       <DebugPhysicsBridge />
       {/* Only one zone's colliders/meshes exist at a time (no duplicate physics, D-031). */}
@@ -187,6 +242,7 @@ function World({ quality }: { quality: QualityProfile }) {
               <VillageInteractables />
               <WorldItems />
               <NightDirector />
+              <VillageLife />
               {npcs && <PatrolNpc config={MOJNU_CONFIG} />}
               <RahimSleeper />
             </>
@@ -197,13 +253,19 @@ function World({ quality }: { quality: QualityProfile }) {
         </group>
       )}
       {phase === 'dawn' && <DawnScene />}
+      {phase === 'safehouse' && (
+        <>
+          <SafehouseStage />
+          <SafehouseCamera />
+        </>
+      )}
       {phase === 'preparation' && (
         <>
           <PrepStage />
           <PrepCamera />
         </>
       )}
-      {!inWorld && phase !== 'preparation' && phase !== 'dawn' && <MenuCamera />}
+      {!inWorld && phase !== 'preparation' && phase !== 'dawn' && phase !== 'safehouse' && <MenuCamera />}
       <NightAtmosphere quality={quality} />
     </Physics>
   );

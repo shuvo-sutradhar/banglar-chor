@@ -2,7 +2,7 @@
 // a recognition, and getting CAUGHT at the market (confiscation + fine) → results.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { approachSidh, cdpFor, completePreparation, face, launch, makeChecker, openGame, playEntrySkilled, ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, wait, walkPath, BAZAAR_PATHS, MERCHANT_SPOT } from './helpers.mjs';
+import { approachSidh, cdpFor, completePreparation, face, launch, makeChecker, openGame, playEntrySkilled, ROUTE_TO_BACK_WALL, ROUTE_TO_EXIT, snap, wait, walkPath, BAZAAR_PATHS, MERCHANT_SPOT, precise } from './helpers.mjs';
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
 // Flags such as --placeholder are not a screenshot directory.
@@ -63,7 +63,9 @@ try {
     const dx = -12 - it.x, dz = 6 - it.z, d = Math.hypot(dx, dz);
     for (const dist of [0.75, 0.55, 0.9, 0.45]) {
       const far = Math.min(1.5, d - 0.2);
+      await precise(page, true);
       await walkPath(page, [[it.x + (dx / d) * far, it.z + (dz / d) * far], [it.x + (dx / d) * dist, it.z + (dz / d) * dist]], { tol: 0.3, timeout: 9000 });
+      await precise(page, false);
       await face(page, it.x, it.z);
       const ok = await page
         .waitForFunction((id) => window.__sidhel.snapshot().hud.focus === id, `item:${it.id}`, { timeout: 2500 })

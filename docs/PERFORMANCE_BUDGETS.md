@@ -55,3 +55,22 @@ The bazaar remains over the 150-call target (~335) because of the procedural NPC
 
 ## 6. Not yet verified (needs real hardware)
 Real FPS on a desktop GPU and a mid-range Android phone, thermal behaviour, GPU memory on device, and download/parse time on mobile networks. See the QA checklist.
+
+## 7. Phase 4B: what changed and what it costs
+### Static (exact)
+| Item | Phase 4A | Phase 4B | Budget |
+|---|---|---|---|
+| `thief.glb` file | 1,360 KB | **1,462 KB** | ≤ 1,536 KB ✔ |
+| Thief triangles | 12,428 | **12,800** (+372 for 4 tools) | ≤ 13,000 ✔ |
+| Thief draw calls | 3 | 3 (**4 only while a tool is in hand**) | ≤ 3 + 1 prop |
+| Thief materials | 2 | 3 (`Thief_Props`: vertex colours, no texture) | — |
+| Clips | 18 | 21 | — |
+| Downloaded audio | 0 | **0 bytes** (all synthesised; voice files only once recorded, decoded on first use) | — |
+| JS bundle (index) | 665 KB | see the build line in §7 (measured) | — |
+
+### Design rules applied (cost-aware by construction)
+- **Ambience** schedules on a 5 Hz timer, not per frame. Each event creates a handful of short-lived Web Audio nodes that stop within ~1 s. **A silent bus (muted or slider at 0) creates no nodes at all.**
+- **Voice:** one active line plus at most 2 queued; buffers are cached after first decode; nothing is fetched unless listed in `available.json`.
+- **HUD:** stamina publishes in 5 % steps (`setStamina` quantises); energy refreshes every 2 s; the snack button reads a plain object. No per-frame React state.
+- **Dig dirt:** one `InstancedMesh` of 10 clods (1 draw call, only while visible). **Dog:** 11 small boxes with 2 materials, only on nights ≥ 2. **Safehouse:** about 12 shared-geometry meshes.
+- **Living-village plan:** computed once per night (pure function); household events are a minute-of-night check in one before-step callback.

@@ -19,6 +19,7 @@ import { say } from '../systems/nightActions';
 import { HumanRig, type Appearance } from './HumanRig';
 import { BOKUL_LOOK, HASHEM_LOOK, JALIL_LOOK, RAHIM_LOOK } from './appearances';
 import { setAction, type RigDriver } from './rigTypes';
+import { nightBody } from '../systems/nightBody';
 
 type KinematicController = ReturnType<ReturnType<typeof useRapier>['world']['createCharacterController']>;
 
@@ -184,14 +185,14 @@ export function MerchantNpc({ id }: { id: MerchantId }) {
       if (near && !timers.current.greeted) {
         timers.current.greeted = true;
         setAction(driver, 'wave');
-        say(MERCHANT_GREETINGS[id][Math.floor(Math.random() * MERCHANT_GREETINGS[id].length)]!, profile.nameBn);
+        say(MERCHANT_GREETINGS[id][Math.floor(Math.random() * MERCHANT_GREETINGS[id].length)]!, profile.nameBn, spot);
       }
       if (!near) timers.current.greeted = false;
       timers.current.call -= dt;
       if (timers.current.call <= 0) {
         timers.current.call = 9 + Math.random() * 8;
         setAction(driver, 'wave');
-        if (Math.hypot(p.x - spot.x, p.z - spot.z) < 9) say(MERCHANT_CALLS[id][Math.floor(Math.random() * MERCHANT_CALLS[id].length)]!, profile.nameBn);
+        if (Math.hypot(p.x - spot.x, p.z - spot.z) < 9) say(MERCHANT_CALLS[id][Math.floor(Math.random() * MERCHANT_CALLS[id].length)]!, profile.nameBn, spot);
       }
       if ((driver.action === 'wave' || driver.action === 'shout') && driver.actionTime > 1.6) setAction(driver, null);
     }
@@ -239,7 +240,7 @@ export function RahimShopper({ route }: { route: readonly XZ[] }) {
       if (sees) {
         const strength = Math.max(...visible.map((i) => LOOT[i.lootId].recognizability));
         const rate = Math.min(32, 40 * strength * (1.4 - d / range) * (crouched ? 0.5 : 1));
-        m.value = Math.min(100, m.value + rate * dt);
+        m.value = Math.min(100, m.value + rate * nightBody.current.plan.recognitionMult * dt);
       } else m.value = Math.max(0, m.value - 12 * dt);
 
       if (!m.warned && m.value >= 35) {

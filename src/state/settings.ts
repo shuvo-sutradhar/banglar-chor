@@ -22,6 +22,14 @@ export const settingsSchema = z.object({
    * original procedural rig. Added with the premium pass; defaulted so older saves validate.
    */
   characterModel: z.enum(['model', 'procedural']).default('model'),
+  // Phase 4B: independent mix levels under the master `volume` (defaults keep older saves valid).
+  ambienceVolume: z.number().min(0).max(1).default(0.8),
+  sfxVolume: z.number().min(0).max(1).default(0.9),
+  voiceVolume: z.number().min(0).max(1).default(1),
+  /** Touch joystick dead zone (fraction of the stick radius). */
+  joystickDeadZone: z.number().min(0.04).max(0.35).default(0.12),
+  /** Left-handed layout: joystick on the right, action buttons on the left. */
+  leftHanded: z.boolean().default(false),
 });
 
 export type Settings = z.output<typeof settingsSchema>;
@@ -37,6 +45,11 @@ export const DEFAULT_SETTINGS: Settings = {
   muted: false,
   roughDialogue: false,
   characterModel: 'model',
+  ambienceVolume: 0.8,
+  sfxVolume: 0.9,
+  voiceVolume: 1,
+  joystickDeadZone: 0.12,
+  leftHanded: false,
 };
 
 export type QualityProfile = {

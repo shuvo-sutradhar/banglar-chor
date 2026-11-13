@@ -80,3 +80,30 @@ Mark with device, browser and date when done.
 - [ ] Desktop GPU: steady 60 FPS on High in the village and the bazaar (record FPS and GPU)
 - [ ] Mid-range Android: ≥ 30 FPS on Auto (Low/Medium); thief textures should report 512² on Low (`__sidhel.snapshot().thief.stats`)
 - [ ] First-load time of `thief.glb` (1.2 MB) on a 4G connection; check it is cached on the second visit
+
+## Phase 4B
+### Automated
+- [x] `npm run check`: unit tests incl. `src/test/phase4b.test.ts`, covering:
+  - audio mix and spatial model; voice director (priority, queue, cooldown, subtitle timing, rough/family, stop); catch-sequence sync;
+  - tool challenge (equipment scaling, tired swings, rest, phase lock); detection with equipped tools;
+  - stamina and energy; food, nap and funds; purchases, upgrades and duplicate transactions;
+  - settlement idempotency; save v2→v3 and salvage; the multi-night replay; the living-village plan; the dog; joystick follow.
+- [ ] `npm run smoke:phase4b`: full lifecycle with real input:
+  - sprint until out of breath; tool in hand with the Dig clip phase-locked; rest;
+  - loot → bazaar sale → results banked once → reload persists;
+  - safehouse: free meal, nap, refused purchase, double-click buys once;
+  - night 2 plan; pause suspends audio.
+- [ ] `npm run smoke:phase4b-touch`: 3 phone viewports:
+  - layout: 44 px targets, no overlaps;
+  - joystick drag, touchcancel, blur and dead zone;
+  - double tap buys once; snack button; tool rest and retreat by touch; left-handed mirror.
+- [ ] `node tests/visual/perf-phase4b.mjs`: scenario costs (see PERFORMANCE_BUDGETS §7).
+
+### Manual (needs a human, ideally on phones)
+- [ ] Listen through a whole night with headphones. The ambience should feel layered and spatial (frogs from the pond side, distant dogs dull and faint), with nothing repeating annoyingly.
+- [ ] The tool swing *looks* like it hits on the beat, and the dirt flies on good strikes.
+- [ ] Exhaustion reads clearly: breathing, panting, the hands-on-knees pose, the dimmed sprint button.
+- [ ] Safehouse: eating, nap and tool-showing poses read well; the shop's trade-offs are understandable without explanation.
+- [ ] Night 2+: the brief explains the modifier; the dog's growl warning is noticeable before it barks.
+- [ ] The catch sequence is funny and the skip silences it at once.
+- [ ] Physical phones: see MOBILE_UX_QA.md §4.

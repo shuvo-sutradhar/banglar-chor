@@ -13,6 +13,7 @@ import { NPC_COLLIDER, PLAYER_COLLIDER } from '../physics/queries';
 import { audio } from '../audio/AudioManager';
 import { say } from '../systems/nightActions';
 import { HumanRig, type Appearance } from './HumanRig';
+import { nightBody } from '../systems/nightBody';
 import { setAction, type RigDriver } from './rigTypes';
 
 type KinematicController = ReturnType<ReturnType<typeof useRapier>['world']['createCharacterController']>;
@@ -89,7 +90,18 @@ export function PatrolNpc({ config }: { config: PatrolNpcConfig }) {
   const coneRef = useRef<Mesh>(null);
   const controllerRef = useRef<KinematicController | null>(null);
 
-  const cfg: BrainConfig = useMemo(() => ({ ...VILLAGER_BRAIN_DEFAULTS, route: config.route }), [config.route]);
+  // Tonight's plan (Stage 5, systems/villageLife.ts): the village patrol varies its route, pace
+  // and sharpness from night 2; the market watchman's pace follows the bazaar situation.
+  const plan = useMemo(() => nightBody.current.plan, []);
+  const village = config.id === 'mojnu';
+  const cfg: BrainConfig = useMemo(
+    () => ({ ...VILLAGER_BRAIN_DEFAULTS, route: village && plan.patrol === 'reverse' ? [...config.route].reverse() : config.route }),
+    [config.route, village, plan],
+  );
+  const sight = useMemo(() => ({ ...VILLAGER_SIGHT, viewDistance: VILLAGER_SIGHT.viewDistance * (village ? plan.sightMult : 1) }), [village, plan]);
+  const suspicionMult = village ? plan.suspicionMult : 1;
+  const walkMult = village ? plan.patrolSpeedMult : 1;
+  const runMult = config.id === 'watchman' ? plan.watchmanSpeedMult : 1;
   const sim = useMemo(() => {
     const start = config.route[0] as XZ;
     return {
@@ -113,11 +125,11 @@ export function PatrolNpc({ config }: { config: PatrolNpcConfig }) {
     () => ({
       question: new SpriteMaterial({ map: iconTexture('?', '#e3ba70'), depthTest: false, transparent: true }),
       bang: new SpriteMaterial({ map: iconTexture('!', '#d8583e'), depthTest: false, transparent: true }),
-      cone: coneGeometry(VILLAGER_SIGHT.viewDistance, VILLAGER_SIGHT.fov),
+      cone: coneGeometry(sight.viewDistance, sight.fov),
       coneCalm: new MeshBasicMaterial({ color: '#f2ad55', transparent: true, opacity: 0.1, depthWrite: false, side: DoubleSide }),
       coneAlert: new MeshBasicMaterial({ color: '#d8583e', transparent: true, opacity: 0.18, depthWrite: false, side: DoubleSide }),
     }),
-    [],
+    [sight.viewDistance, sight.fov],
   );
   useEffect(
     () => () => {
@@ -196,12 +208,12 @@ export function PatrolNpc({ config }: { config: PatrolNpcConfig }) {
         const dx = player.position.x - p.x;
         const dz = player.position.z - p.z;
         const cone = { dx, dz, facingX: sim.npc.facing.x, facingZ: sim.npc.facing.z, crouched };
-        if (inViewCone(cone, VILLAGER_SIGHT)) {
+        if (inViewCone(cone, sight)) {
           const targetY = player.position.y + (crouched ? 0.7 : 1.15);
           const los = !blocked(p.x, p.y + EYE_HEIGHT, p.z, player.position.x, targetY, player.position.z);
           if (los) {
             const exposure = exposureAt(player.position.x, player.position.z, [...config.lights, { x: p.x, z: p.z, radius: 3.5 }]);
-            sim.sightRate = sightSuspicionRate({ ...cone, running: player.mode === 'run', exposure, lineOfSight: true }, VILLAGER_SIGHT);
+            sim.sightRate = sightSuspicionRate({ ...cone, running: player.mode === 'run', exposure, lineOfSight: true }, sight) * suspicionMult;
           }
         }
       }
@@ -248,7 +260,7 @@ export function PatrolNpc({ config }: { config: PatrolNpcConfig }) {
     if (out.bark && runtime.simTime - sim.lastBarkAt > 1.2) {
       const lines = config.barks[out.bark];
       const dPlayer = Math.hypot(player.position.x - p.x, player.position.z - p.z);
-      if (dPlayer < 26) say(lines[Math.floor(runtime.simTime * 7) % lines.length] ?? lines[0]!, config.nameBn);
+      if (dPlayer < 26) say(lines[Math.floor(runtime.simTime * 7) % lines.length] ?? lines[0]!, config.nameBn, { x: p.x, z: p.z });
       sim.lastBarkAt = runtime.simTime;
     }
     if (out.caught) {
@@ -258,7 +270,7 @@ export function PatrolNpc({ config }: { config: PatrolNpcConfig }) {
     }
 
     // ---- Locomotion with nav-graph pathfinding ----
-    let speed = out.pace === 'run' && config.runSpeed !== undefined ? config.runSpeed : NPC_SPEEDS[out.pace];
+    let speed = (out.pace === 'run' && config.runSpeed !== undefined ? config.runSpeed : NPC_SPEEDS[out.pace]) * (out.pace === 'run' ? runMult : walkMult);
     let dirX = 0;
     let dirZ = 0;
     if (out.target && speed > 0) {
