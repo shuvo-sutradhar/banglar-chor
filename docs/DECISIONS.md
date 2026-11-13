@@ -235,3 +235,26 @@ The safehouse is a compact yard at the village edge (cot, stove, sack) with the 
 - **What stamina still decides:** how long you can sprint *before* a chase, how often you dig, and whether a long chase ends badly.
 
 **Dialogue.** A gameplay-critical info line (e.g. the entry cooldown "একটু পরে") is no longer cut off by a higher-priority line. The urgent line queues at the front and plays right after; alarm SFX are immediate anyway.
+
+## D-064 · NPC rigs: runtime skinned batching (draw calls), pose-update LOD
+**Problem, measured.** Each procedural NPC (`HumanRig`) is 25–40 small meshes, so it costs one draw call per part. The rigs were the main draw-call cost in both zones.
+
+**Approach.** Right after mount, `rigBatcher.ts` rebuilds each rig's parts into a few `SkinnedMesh`es and hides the originals:
+- **Skeleton.** The rig's own animated `Group`s *are* the skeleton (a Skeleton only reads `matrixWorld`), so all posing code is untouched.
+- **Rigid skinning.** Every part is skinned with weight 1 to its parent group.
+- **Plain colours.** All plain-colour Lambert parts merge into one mesh, with colour baked into vertex colours under one shared Lambert material. Shading is identical.
+- **Textured cloth.** Each textured cloth (lungi or gamcha checks) is one mesh.
+- **Left alone.** Special materials (emissive lantern, glass, oiled skin) and toggled groups (headband, sack, hand props with lights) stay as they are.
+
+**What stays the same.** Each character keeps its own materials and proportions, so Rahim, Majnu, the three merchants and the crowd still look distinct; this is not one cloned model. `?debug=1&nobatch=1` disables batching for A/B comparison.
+
+**Verified.**
+- Unit tests: vertices land exactly where the original parts were, at rest and after a bone moves and the character moves; disposal restores the originals.
+- A/B on the same build:
+  - village with the patrol and Rahim: **313 → 256** draw calls;
+  - bazaar arrival: **329 → 165**;
+  - the two village rigs: 66 → 7 draws.
+
+**Pose-update LOD.** Rigs more than 22 m from the camera pose every 3rd frame with the accumulated time (the tick clamp was raised to 0.35 s so the motion speed is unchanged).
+
+**Not done (honest).** These are still the procedural low-poly characters. No new NPC model was made in Blender in this phase, so their *visual* quality is unchanged.

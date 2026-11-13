@@ -9,6 +9,7 @@ import { useRunStore } from '../state/useRunStore';
 import { debugEnabled, debugHooks, npcsDisabledForTests } from './debugHooks';
 import { thiefVisual } from './characters/glb/thiefAsset';
 import { nightBody } from './systems/nightBody';
+import { liveRigBatches } from './characters/rigBatcher';
 import { audio } from './audio/AudioManager';
 import { voice, voiceAvailability } from './audio/voice';
 import { WorldItems } from './world/WorldItems';
@@ -100,7 +101,7 @@ function DebugBridge() {
         camera: { yaw: runtime.camera.yaw, pitch: runtime.camera.pitch, preset: runtime.camera.preset, distance: runtime.camera.currentDistance, occluded: runtime.camera.occluded },
         crouched: runtime.input.crouched,
         app: { phase: useAppStore.getState().phase, paused: useAppStore.getState().paused },
-        hud: { zone: useHudStore.getState().zoneLabel, focus: useHudStore.getState().focus?.id ?? null, caption: useHudStore.getState().caption?.text ?? null, mode: useHudStore.getState().movementMode },
+        hud: { zone: useHudStore.getState().zoneLabel, focus: useHudStore.getState().focus?.id ?? null, caption: useHudStore.getState().caption?.text ?? null, captionLog: useHudStore.getState().captionLog, mode: useHudStore.getState().movementMode },
         npcs: [...runtime.npcs.values()].map((n) => ({ id: n.id, x: n.position.x, z: n.position.z, state: n.state, suspicion: n.suspicion, fx: n.facing.x, fz: n.facing.z })),
         run: (() => {
           const r = useRunStore.getState().run;
@@ -140,6 +141,10 @@ function DebugBridge() {
           return { stamina: b.stamina.value, staminaMax: b.stamina.params.max, exhausted: b.stamina.exhausted, sprintSeconds: b.stamina.sprintSeconds, digs: b.stamina.digs, energyStart: b.loadout.energy, tool: runtime.player.tool ?? null, clipPhase: runtime.player.clipPhase ?? null, action: runtime.player.action, mods: b.loadout.mods, supplies: { ...b.supplies } };
         })(),
         plan: nightBody.current.plan,
+        rigBatches: (() => {
+          const all = [...liveRigBatches];
+          return { rigs: all.length, drawsBefore: all.reduce((s, b) => s + b.drawsBefore, 0), drawsAfter: all.reduce((s, b) => s + b.drawsAfter, 0) };
+        })(),
         audio: { ...audio.state, counts: Object.fromEntries(audio.counts) },
         voice: { current: voice.current?.id ?? null, log: voice.log.slice(-12), files: voiceAvailability().files },
       }),

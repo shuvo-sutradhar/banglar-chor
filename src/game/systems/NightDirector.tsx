@@ -24,6 +24,7 @@ export function NightDirector() {
   const runtime = useGameRuntime();
   const hudTimer = useRef(0);
   const exitHintAt = useRef(-99);
+  const chaseHubbub = useRef(0);
 
   // Carried weight → movement and footstep noise (subscription, not per-frame React).
   useEffect(() => {
@@ -95,6 +96,17 @@ export function NightDirector() {
   useFrame((_, dt) => {
     const p = runtime.player.position;
     audio.setListener(p.x, p.z);
+    // Chase hubbub: excited village walla from whoever is chasing, every 1.6–2.8 s (never stacked).
+    chaseHubbub.current -= dt;
+    if (chaseHubbub.current <= 0 && useAppStore.getState().phase === 'chase' && !useAppStore.getState().paused) {
+      chaseHubbub.current = 1.6 + Math.random() * 1.2;
+      for (const npc of runtime.npcs.values()) {
+        if (npc.state === 'chasing') {
+          audio.play('crowd-chase', { at: { x: npc.position.x, z: npc.position.z }, range: 40 });
+          break;
+        }
+      }
+    }
     hudTimer.current += dt;
     if (hudTimer.current < 0.2) return;
     hudTimer.current = 0;

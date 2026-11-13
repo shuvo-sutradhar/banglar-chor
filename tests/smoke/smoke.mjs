@@ -103,7 +103,9 @@ async function desktop(browser) {
   await wait(300);
   s = await snap(page);
   const ran = z1 - s.player.z;
-  check('sprint: Shift+W runs faster than walking', ran > walked * 1.4, `ran ${ran.toFixed(2)} m vs walked ${walked.toFixed(2)} m`);
+  // Compare the speeds sampled while each key was held: wall-clock distance windows are invalid
+  // at headless frame rates (one snapshot can take seconds of game time).
+  check('sprint: Shift+W runs faster than walking', mid.player.speed > walkMid.player.speed * 1.4, `run ${mid.player.speed.toFixed(2)} m/s vs walk ${walkMid.player.speed.toFixed(2)} m/s (distances ${ran.toFixed(2)} / ${walked.toFixed(2)} m)`);
   check('sprint: HUD/anim mode is run while sprinting', mid.player.mode === 'run' && mid.hud.mode === 'run', `${mid.player.mode}/${mid.hud.mode}`);
   check('sprint: camera FOV/preset stays exploration outdoors', mid.camera.preset === 'exploration');
 
@@ -142,10 +144,12 @@ async function desktop(browser) {
   check('interaction: house becomes focused target when close', s.hud.focus === 'inspect-rahim-house', String(s.hud.focus));
   const promptVisible = await page.getByTestId('interact-prompt').isVisible().catch(() => false);
   check('interaction: desktop prompt shows E key', promptVisible);
+  const shownBefore = (await snap(page)).hud.captionLog.length;
   await page.keyboard.press('KeyE');
-  await wait(300);
+  // Captions are timed; wait for it to be shown (the log keeps it even if a slow sample misses it).
+  await page.waitForFunction((n) => window.__sidhel.snapshot().hud.captionLog.length > n, shownBefore, { timeout: 15000 }).catch(() => {});
   s = await snap(page);
-  check('interaction: E shows inspect caption', !!s.hud.caption, String(s.hud.caption));
+  check('interaction: E shows inspect caption', s.hud.captionLog.length > shownBefore, String(s.hud.captionLog.at(-1)));
   await page.screenshot({ path: join(SHOTS, 'desktop-house-wall.png') });
 
   // Camera occlusion: swing camera so the wall is between camera and player.
@@ -269,7 +273,8 @@ async function touch(browser) {
   await touchEvt('touchStart', [[140, 300, 1]]);
   await touchEvt('touchStart', [[140, 300, 1], [sx, sy, 2]]);
   for (let i = 1; i <= 6; i++) await touchEvt('touchMove', [[140, 300 - i * 14, 1], [sx, sy, 2]]);
-  await wait(700);
+  // Sample during the hold (stamina, Phase 4B, ends a sprint after ~5 s; slow samples can miss it).
+  await page.waitForFunction(() => window.__sidhel.snapshot().player.mode === 'run', null, { timeout: 15000 }).catch(() => {});
   const runMid = await snap(page);
   await touchEvt('touchEnd', [[sx, sy, 2]]);
   await touchEvt('touchEnd', []);

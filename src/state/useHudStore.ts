@@ -15,6 +15,8 @@ type HudState = {
   zoneLabel: string | null;
   focus: HudFocus;
   caption: HudCaption;
+  /** Last 10 captions shown (text only), for tests: captions are timed and can expire between samples. */
+  captionLog: string[];
   cameraPreset: CameraPresetId;
   crouched: boolean;
   touchUi: boolean;
@@ -41,6 +43,7 @@ export const useHudStore = create<HudState>()((set, get) => ({
   zoneLabel: null,
   focus: null,
   caption: null,
+  captionLog: [],
   cameraPreset: 'exploration',
   crouched: false,
   touchUi: false,
@@ -58,7 +61,7 @@ export const useHudStore = create<HudState>()((set, get) => ({
   },
   showCaption: (text, speaker, ms) => {
     const id = ++captionCounter;
-    set({ caption: { id, text, speaker, ms } });
+    set({ caption: { id, text, speaker, ms }, captionLog: [...get().captionLog.slice(-9), text] });
     return id;
   },
   clearCaption: (id) => {

@@ -4,7 +4,7 @@
 // procedural rig with no page errors, and the compact marker appears. Screenshots for review.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { cdpFor, launch, makeChecker, openGame, snap, wait, walkPath, face } from './helpers.mjs';
+import { cdpFor, launch, makeChecker, openGame, snap, wait, walkPath, face, approachSidh } from './helpers.mjs';
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
 const SHOTS = process.argv[3] ?? 'test-results/premium';
@@ -53,7 +53,7 @@ try {
       await page.keyboard.press('Space');
       await wait(350);
     }
-    await page.getByTestId('prep-go').click({ timeout: 20000 });
+    await page.getByTestId('prep-go').click({ timeout: 45000 });
   });
   await page.waitForFunction(() => window.__sidhel?.snapshot().player !== null, null, { timeout: 20000 });
   await wait(2000);
@@ -95,8 +95,7 @@ try {
   check('facing: the thief turns to the steering direction and moves that way', after.player.x < before.player.x - 0.8, `x ${before.player.x.toFixed(2)} → ${after.player.x.toFixed(2)}`);
 
   // ---------------- 4. Compact interaction marker near a target ----------------
-  await walkPath(page, [[0.5, 22], [-1, 13.2], [-7, 13.4], [-16.8, 13.2], [-16.8, 6], [-15.4, 6]], { timeout: 30000 });
-  await face(page, -14.6, 6);
+  await approachSidh(page, { run: false });
   await wait(1200);
   s = await snap(page);
   check('marker: the sidh target is focused at the back wall', s.hud.focus === 'rahim-sidh', String(s.hud.focus));

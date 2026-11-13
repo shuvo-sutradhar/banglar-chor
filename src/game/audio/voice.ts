@@ -13,7 +13,7 @@
  * when they are listed in public/assets/audio/voice/available.json. No recordings exist yet, so
  * today every line is "text-only": subtitles with timing, and NO fake voice sounds.
  */
-import { lineText, voiceFile, voiceLine, voiceLineForText, CHARACTER_NAMES, type VoiceLine } from './voiceLines';
+import { lineText, voiceLine, voiceLineForText, voiceTakes, CHARACTER_NAMES, VOICE_LINES, type VoiceLine } from './voiceLines';
 import { audio } from './AudioManager';
 
 export type PlayHandle = { duration: number; voiced: boolean; stop: () => void };
@@ -91,6 +91,12 @@ export class VoiceDirector {
     if (last !== undefined && t - last < line.cooldown) return 'cooldown';
     if (this.active && this.active.line.id === line.id) return 'cooldown';
     if (this.active) {
+      // Gameplay instructions are shown at once: they cut off equal/lower flavour or reactions.
+      if (line.info && !this.active.line.info && line.priority >= this.active.line.priority) {
+        this.interrupt();
+        this.begin(line, at, t);
+        return 'played';
+      }
       if (line.priority > this.active.line.priority) {
         // Gameplay-critical info (e.g. "retry later") is never cut off: the urgent line goes to
         // the front of the queue and plays right after it.
@@ -188,6 +194,7 @@ export class VoiceDirector {
 /** Files that actually exist (written by `npm run voice:manifest`); empty until recordings land. */
 let available: Set<string> | null = null;
 const buffers = new Map<string, AudioBuffer | 'loading' | 'failed'>();
+const lastTake = new Map<string, number>();
 
 export async function loadVoiceAvailability(base = import.meta.env.BASE_URL ?? '/'): Promise<number> {
   try {
@@ -198,6 +205,8 @@ export async function loadVoiceAvailability(base = import.meta.env.BASE_URL ?? '
   } catch {
     available = new Set();
   }
+  // Must-hear lines (alarms, the catch) are fetched up front so their first use is voiced.
+  if (available.size) preloadLines(VOICE_LINES.filter((l) => l.priority === 3).map((l) => l.id), false);
   return available.size;
 }
 
@@ -221,17 +230,21 @@ export function preloadLines(ids: readonly string[], rough: boolean): void {
   for (const id of ids) {
     const l = voiceLine(id);
     if (!l) continue;
-    const f = voiceFile(l, rough && !!l.roughText);
-    if (available?.has(f)) preload(f);
+    if (available) for (const f of voiceTakes(l, rough, available)) preload(f);
   }
 }
 
 export const browserVoicePlayer: VoicePlayer = {
   start(line, text, rough, at) {
-    const file = voiceFile(line, rough && !!line.roughText);
+    // Alternate takes so repeated barks don't sound identical (never the same take twice in a row).
+    const takes = available ? voiceTakes(line, rough, available) : [];
+    const last = lastTake.get(line.id) ?? -1;
+    const i = takes.length > 1 ? (last + 1 + Math.floor(Math.random() * (takes.length - 1))) % takes.length : 0;
+    const file = takes[i] ?? '';
+    lastTake.set(line.id, i);
     const ctx = audio.context;
     const buf = buffers.get(file);
-    if (ctx && available?.has(file)) {
+    if (ctx && file) {
       if (buf instanceof AudioBuffer) {
         const r = audio.route({ at, bus: 'voice', range: 34 }, 'voice');
         if (r) {
